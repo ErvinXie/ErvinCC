@@ -19,8 +19,8 @@ grammer *x = new grammer();
 
 
 int main() {
-    freopen("../input.txt", "r", stdin);
-    freopen("../output.txt", "w", stdout);
+    freopen("../testfiles/input.txt", "r", stdin);
+    freopen("../testfiles/output.txt", "w", stdout);
     x->read_rules();
     x->print_rules();
 

@@ -19,24 +19,24 @@ S:
     c 
 
 S' -> S ·
-S -> c ·
 S -> a · S S b
 S -> a · S S S
+S -> c ·
 S -> a S · S b
 S -> a S · S S
-S -> c ·
 S -> a · S S b
 S -> a · S S S
+S -> c ·
 S -> a S S · b
 S -> a S S · S
-S -> c ·
 S -> a · S S b
 S -> a · S S S
-S -> a S S S ·
 S -> c ·
+S -> a S S S ·
 S -> a · S S b
 S -> a · S S S
 S -> a S S b ·
+S -> c ·
 Closure 1: 
     S' -> · S
     S -> · a S S b
@@ -44,18 +44,14 @@ Closure 1:
     S -> · c
 
 through S to Closure 2
-through c to Closure 3
-through a to Closure 4
+through a to Closure 3
+through c to Closure 4
 
 Closure 2: 
     S' -> S ·
 
 
 Closure 3: 
-    S -> c ·
-
-
-Closure 4: 
     S -> · a S S b
     S -> a · S S b
     S -> · a S S S
@@ -63,8 +59,12 @@ Closure 4:
     S -> · c
 
 through S to Closure 5
-through c to Closure 3
-through a to Closure 4
+through a to Closure 3
+through c to Closure 4
+
+Closure 4: 
+    S -> c ·
+
 
 Closure 5: 
     S -> · a S S b
@@ -74,8 +74,8 @@ Closure 5:
     S -> · c
 
 through S to Closure 6
-through c to Closure 3
-through a to Closure 4
+through a to Closure 3
+through c to Closure 4
 
 Closure 6: 
     S -> · a S S b
@@ -85,9 +85,9 @@ Closure 6:
     S -> · c
 
 through S to Closure 7
-through c to Closure 3
-through a to Closure 4
+through a to Closure 3
 through b to Closure 8
+through c to Closure 4
 
 Closure 7: 
     S -> a S S S ·
