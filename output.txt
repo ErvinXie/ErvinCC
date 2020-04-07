@@ -1,0 +1,99 @@
+All Vn:
+        S
+        S'
+
+All Vt:
+        a
+        b
+        c
+
+All S:
+        S'
+All rules:
+S': 
+    S 
+
+S: 
+    a S S b 
+    a S S S 
+    c 
+
+S' -> S ·
+S -> c ·
+S -> a · S S b
+S -> a · S S S
+S -> a S · S b
+S -> a S · S S
+S -> c ·
+S -> a · S S b
+S -> a · S S S
+S -> a S S · b
+S -> a S S · S
+S -> c ·
+S -> a · S S b
+S -> a · S S S
+S -> a S S S ·
+S -> c ·
+S -> a · S S b
+S -> a · S S S
+S -> a S S b ·
+Closure 1: 
+    S' -> · S
+    S -> · a S S b
+    S -> · a S S S
+    S -> · c
+
+through S to Closure 2
+through c to Closure 3
+through a to Closure 4
+
+Closure 2: 
+    S' -> S ·
+
+
+Closure 3: 
+    S -> c ·
+
+
+Closure 4: 
+    S -> · a S S b
+    S -> a · S S b
+    S -> · a S S S
+    S -> a · S S S
+    S -> · c
+
+through S to Closure 5
+through c to Closure 3
+through a to Closure 4
+
+Closure 5: 
+    S -> · a S S b
+    S -> a S · S b
+    S -> · a S S S
+    S -> a S · S S
+    S -> · c
+
+through S to Closure 6
+through c to Closure 3
+through a to Closure 4
+
+Closure 6: 
+    S -> · a S S b
+    S -> a S S · b
+    S -> · a S S S
+    S -> a S S · S
+    S -> · c
+
+through S to Closure 7
+through c to Closure 3
+through a to Closure 4
+through b to Closure 8
+
+Closure 7: 
+    S -> a S S S ·
+
+
+Closure 8: 
+    S -> a S S b ·
+
+
