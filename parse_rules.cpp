@@ -11,11 +11,11 @@
 #include <set>
 #include <bitset>
 
-#include "grammer.h"
+#include "grammar.h"
 
 using namespace std;
 
-grammer *x = new grammer();
+grammar *x = new grammar();
 
 
 int main() {
@@ -25,13 +25,13 @@ int main() {
     x->print_rules();
 
 //    cout << "Eliminate Left Recursion" << endl;
-//    x = x->eliminate_left_recursion();
-//    x->print_rules();
-//    x->print_first();
+    x = x->eliminate_left_recursion();
+    x->print_rules();
+    x->print_first();
+    x->print_follow();
+    x->print_LL1form();
+//    x->build_closures();
+//    x->print_closures();
 //    x->print_follow();
-//    x->print_LL1form();
-    x->build_closures();
-    x->print_closures();
-
     return 0;
 }

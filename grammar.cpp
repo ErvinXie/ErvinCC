@@ -2,16 +2,16 @@
 // Created by 谢威宇 on 2020/3/30.
 //
 
-#include "grammer.h"
+#include "grammar.h"
 
-grammer_node::grammer_node(string name, class grammer *g) : name(name), grammer(g) {
+grammer_node::grammer_node(string name, class grammar *g) : name(name), grammar(g) {
 //    cout << name << endl;
 }
 
 void grammer_node::add(vector<string> x) {
     vector<nodep> t;
     for (auto s:x) {
-        t.push_back(grammer->next_node(s));
+        t.push_back(grammar->next_node(s));
     }
     rules.push_back(t);
 }
@@ -110,7 +110,7 @@ void grammer_node::substitute_first(nodep v) {
 set<nodep> grammer_node::get_first() {
     if (first.empty()) {
         set<nodep> re;
-        if (grammer->isvt(this)) {
+        if (grammar->isvt(this)) {
             re.insert(this);
         } else {
             get_first_by_rule();
@@ -128,13 +128,13 @@ vector<set<nodep>> grammer_node::get_first_by_rule() {
         for (auto r:rules) {
             set<nodep> s;
             for (int i = 0; i < r.size(); i++) {
-                if (r[i]->grammer->isvt(r[i]))
+                if (r[i]->grammar->isvt(r[i]))
                     s.insert(r[i]);
                 else {
                     if (r[i] != this) {
                         auto x = r[i]->get_first();
                         for (auto xx:x) {
-                            if (xx != grammer->next_node("epsilon"))
+                            if (xx != grammar->next_node("epsilon"))
                                 s.insert(xx);
                         }
                     }
@@ -142,7 +142,7 @@ vector<set<nodep>> grammer_node::get_first_by_rule() {
                 if (r[i]->de_epsilon() == false)
                     break;
                 if (i == r.size() - 1) {
-                    s.insert(grammer->next_node("epsilon"));
+                    s.insert(grammar->next_node("epsilon"));
                 }
             }
             re.push_back(s);
@@ -185,21 +185,31 @@ set<itemp> grammer_node::get_items(function<bool(itemp)> filter) {
 }
 
 itemp grammer_node::get_item(vector<nodep> rule, int pos) {
+
     if (itemps.count({rule, pos}) == 0) {
-        itemps[{rule, pos}] = new item(this, rule, pos);
+        auto x = new item(this, rule, pos);
+        if (x->dot_position != pos) {
+            itemps[{rule, pos}] = get_item(rule, x->dot_position);
+        } else {
+            itemps[{rule, pos}] = x;
+        }
     }
     return itemps[{rule, pos}];
 }
 
+bool grammer_node::is_vt() {
+    return rules.empty();
+}
 
-nodep grammer::next_node(string name) {
+
+nodep grammar::next_node(string name) {
     if (all_vertices.count(name) == 0) {
         all_vertices[name] = new grammer_node(name, this);
     }
     return all_vertices[name];
 }
 
-void grammer::read_rules() {
+void grammar::read_rules() {
     char line[1000];
     nodep now = nullptr;
     bool oneof = false;
@@ -258,27 +268,27 @@ void grammer::read_rules() {
     }
 }
 
-vector<nodep> grammer::get_all_Vn() {
+vector<nodep> grammar::get_all_Vn() {
     vector<nodep> re;
     for (auto x:all_vertices) {
-        if (x.second->rules.size()) {
+        if (!x.second->is_vt()) {
             re.push_back(x.second);
         }
     }
     return re;
 }
 
-vector<nodep> grammer::get_all_Vt() {
+vector<nodep> grammar::get_all_Vt() {
     vector<nodep> re;
     for (auto x:all_vertices) {
-        if (x.second->rules.empty()) {
+        if (x.second->is_vt()) {
             re.push_back(x.second);
         }
     }
     return re;
 }
 
-vector<nodep> grammer::get_root() {
+vector<nodep> grammar::get_root() {
 //    map<nodep, bool> m;
 //    for (auto x:all_vertices) {
 //        if (m.count(x.second) == 0) {
@@ -305,7 +315,7 @@ vector<nodep> grammer::get_root() {
     return vector<nodep>({nodes[0]});
 }
 
-void grammer::print_rules(bool tex) {
+void grammar::print_rules(bool tex) {
     printf("All Vn:\n");
     for (auto p : get_all_Vn()) {
         if (tex) {
@@ -347,7 +357,7 @@ void grammer::print_rules(bool tex) {
 
 }
 
-grammer::grammer(const grammer &g) {
+grammar::grammar(const grammar &g) {
     for (auto n:g.nodes) {
         auto newn = next_node(n->name);
         nodes.push_back(newn);
@@ -362,8 +372,8 @@ grammer::grammer(const grammer &g) {
     }
 }
 
-grammer *grammer::eliminate_left_recursion() {
-    grammer *re = new grammer(*this);
+grammar *grammar::eliminate_left_recursion() {
+    grammar *re = new grammar(*this);
     for (int i = 0; i < re->nodes.size(); i++) {
 //        re->print_rules();
         nodep u = re->nodes[i];
@@ -438,13 +448,13 @@ grammer *grammer::eliminate_left_recursion() {
     return re;
 }
 
-grammer::~grammer() {
+grammar::~grammar() {
     for (auto p:all_vertices) {
         delete p.second;
     }
 }
 
-void grammer::print_first() {
+void grammar::print_first() {
     cout << "----First:----" << endl;
     set<nodep> Vt;
     for (auto n:get_all_Vt())
@@ -475,15 +485,11 @@ void grammer::print_first() {
 }
 
 
-bool grammer::isvt(nodep x) {
-    if (all_vt.empty()) {
-        for (auto p:get_all_Vt())
-            all_vt.insert(p);
-    }
-    return all_vt.count(x);
+bool grammar::isvt(nodep x) {
+    return x->is_vt();
 }
 
-map<nodep, set<nodep>> grammer::get_follow() {
+map<nodep, set<nodep>> grammar::get_follow() {
     if (follow.size())
         return follow;
 
@@ -534,7 +540,7 @@ map<nodep, set<nodep>> grammer::get_follow() {
     return re;
 }
 
-void grammer::print_follow() {
+void grammar::print_follow() {
     cout << "----Follow:----" << endl;
     for (auto p:get_follow()) {
         cout << p.first->name << ": " << endl;
@@ -544,7 +550,7 @@ void grammer::print_follow() {
     }
 }
 
-map<nodep, set<nodep>> grammer::get_first() {
+map<nodep, set<nodep>> grammar::get_first() {
     if (first.size())
         return first;
     map<nodep, set<nodep>> re;
@@ -555,7 +561,7 @@ map<nodep, set<nodep>> grammer::get_first() {
     return re;
 }
 
-map<pair<nodep, nodep>, vector<vector<nodep>>> grammer::get_LL1form() {
+map<pair<nodep, nodep>, vector<vector<nodep>>> grammar::get_LL1form() {
     if (LL1form.size()) {
         return LL1form;
     }
@@ -586,7 +592,7 @@ map<pair<nodep, nodep>, vector<vector<nodep>>> grammer::get_LL1form() {
     return re;
 }
 
-void grammer::print_LL1form() {
+void grammar::print_LL1form() {
     cout << "----LL1 form----" << endl;
     get_LL1form();
     for (auto p: LL1form) {
@@ -601,7 +607,7 @@ void grammer::print_LL1form() {
     }
 }
 
-closurep grammer::get_closure(set<itemp> items) {
+closurep grammar::get_closure(set<itemp> items) {
     set<itemp> last;
     while (items != last) {
         last = items;
@@ -615,14 +621,14 @@ closurep grammer::get_closure(set<itemp> items) {
     return closures[items];
 }
 
-void grammer::build_closures() {
+void grammar::build_closures() {
     auto c = get_closure(get_root()[0]->get_items([](itemp p) -> bool { return p->dot_position == 0; }));
     c->expand();
     head_closure = c;
 }
 
 
-void grammer::print_closures() {
+void grammar::print_closures() {
     vector<closurep> c;
     for (auto p:closures) {
         c.push_back(p.second);
@@ -635,12 +641,17 @@ void grammer::print_closures() {
 
 
 item::item(nodep left, vector<nodep> rule, int dot_position) : left(left), rule(std::move(rule)),
-                                                               dot_position(dot_position) {}
+                                                               dot_position(dot_position) {
+    if (this->rule.size() == 1 && this->rule[0]->name == "epsilon") {
+        this->rule.clear();
+        this->dot_position = 0;
+    }
+}
 
 set<itemp> item::get_closure_items() {
     if (!closure_items.empty())
         return closure_items;
-    grammerp g = left->grammer;
+    grammerp g = left->grammar;
     set<itemp> re;
     set<itemp> last;
     re.insert(this);
@@ -671,8 +682,36 @@ string item::to_string(string prefix) {
     }
     if (dot_position == rule.size())
         prefix += " ·";
+
+    prefix += "  " + get_kind_str();
+
+
     prefix += "\n";
     return prefix;
+}
+
+item::kind item::get_kind() {
+    if (dot_position == rule.size()) {
+        if (left == left->grammar->get_root()[0])
+            return ACC;
+        else
+            return RDC;
+    } else {
+        auto nxt = rule[dot_position];
+        if (nxt->is_vt())
+            return SFT;
+        else
+            return TRD;
+    }
+}
+
+std::string item::get_kind_str() {
+    return std::map<kind, std::string>({
+                                               {ACC, "accept"},
+                                               {RDC, "reduce"},
+                                               {SFT, "shift"},
+                                               {TRD, "to be reduce"}
+                                       })[get_kind()];
 }
 
 int closure::cnt = 0;
@@ -686,7 +725,7 @@ void closure::expand() {
     if (items.empty())
         return;
     expanded = true;
-    grammerp g = (*items.begin())->left->grammer;
+    grammerp g = (*items.begin())->left->grammar;
 
     map<nodep, set<itemp> > nxt;
     for (auto i:items) {
@@ -696,19 +735,17 @@ void closure::expand() {
         }
     }
     for (const auto &p:nxt) {
-        for (auto x:p.second) {
-            cout << x->to_string();
-        }
         go[p.first] = g->get_closure(p.second);
     }
     for (const auto &p:go) {
-        if(p.second->expanded== false)
+        if (p.second->expanded == false)
             p.second->expand();
     }
 }
 
 string closure::to_string() {
     string re = "Closure " + ::to_string(mycnt) + ": \n";
+
     for (auto i:items) {
         re += i->to_string("    ");
     }

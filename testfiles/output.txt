@@ -5,7 +5,7 @@ All Vn:
 All Vt:
         a
         b
-        c
+        e
 
 All S:
         S'
@@ -14,86 +14,62 @@ S':
     S 
 
 S: 
-    a S S b 
-    a S S S 
-    c 
+    S a S b 
+    e 
 
-S' -> S ·
-S -> a · S S b
-S -> a · S S S
-S -> c ·
-S -> a S · S b
-S -> a S · S S
-S -> a · S S b
-S -> a · S S S
-S -> c ·
-S -> a S S · b
-S -> a S S · S
-S -> a · S S b
-S -> a · S S S
-S -> c ·
-S -> a S S S ·
-S -> a · S S b
-S -> a · S S S
-S -> a S S b ·
-S -> c ·
-Closure 1: 
-    S' -> · S
-    S -> · a S S b
-    S -> · a S S S
-    S -> · c
+All Vn:
+        S
+        S'
 
-through S to Closure 2
-through a to Closure 3
-through c to Closure 4
+All Vt:
+        a
+        b
+        e
+        epsilon
 
-Closure 2: 
-    S' -> S ·
+All S:
+        S'
+All rules:
+S': 
+    e S' 
+    a S b S' 
+    epsilon 
 
+S: 
+    e S' 
 
-Closure 3: 
-    S -> · a S S b
-    S -> a · S S b
-    S -> · a S S S
-    S -> a · S S S
-    S -> · c
+S': 
+    e S' 
+    a S b S' 
+    epsilon 
 
-through S to Closure 5
-through a to Closure 3
-through c to Closure 4
+----First:----
+S:
+    e
 
-Closure 4: 
-    S -> c ·
+    e S' : e 
+S':
+    a
+    e
+    epsilon
 
-
-Closure 5: 
-    S -> · a S S b
-    S -> a S · S b
-    S -> · a S S S
-    S -> a S · S S
-    S -> · c
-
-through S to Closure 6
-through a to Closure 3
-through c to Closure 4
-
-Closure 6: 
-    S -> · a S S b
-    S -> a S S · b
-    S -> · a S S S
-    S -> a S S · S
-    S -> · c
-
-through S to Closure 7
-through a to Closure 3
-through b to Closure 8
-through c to Closure 4
-
-Closure 7: 
-    S -> a S S S ·
-
-
-Closure 8: 
-    S -> a S S b ·
-
-
+    e S' : e 
+    a S b S' : a 
+    epsilon : epsilon 
+----Follow:----
+S': 
+    b
+    #
+S: 
+    b
+----LL1 form----
+S' a
+    a S b S' 
+S' b
+    epsilon 
+S' e
+    e S' 
+S' #
+    epsilon 
+S e
+    e S' 

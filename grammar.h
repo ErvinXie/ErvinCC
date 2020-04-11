@@ -2,8 +2,8 @@
 // Created by 谢威宇 on 2020/3/30.
 //
 
-#ifndef ERVINCC_GRAMMER_H
-#define ERVINCC_GRAMMER_H
+#ifndef ERVINCC_GRAMMAR_H
+#define ERVINCC_GRAMMAR_H
 
 
 #include <string>
@@ -19,9 +19,9 @@ class grammer_node;
 
 typedef grammer_node *nodep;
 
-class grammer;
+class grammar;
 
-typedef grammer *grammerp;
+typedef grammar *grammerp;
 
 // LR(0) 的项目
 class item;
@@ -38,13 +38,13 @@ private:
     set<nodep> first;
     vector<set<nodep>> first_by_rule;
 public:
-    grammer_node(string name, class grammer *g);
+    grammer_node(string name, class grammar *g);
 
     ~grammer_node();
 
     string name;
     vector<vector<nodep> > rules;
-    grammer *grammer;
+    grammar *grammar;
 
     void add(vector<string> x);
 
@@ -63,6 +63,7 @@ public:
     vector<set<nodep>> get_first_by_rule();
 
     bool de_epsilon();//能否推导出epsilon
+    bool is_vt();
 
 
     //LR(0)
@@ -70,18 +71,18 @@ public:
 
     itemp get_item(vector<nodep> rule, int pos);
 
-    set<itemp> get_items(function<bool(itemp)> filter= nullptr);
+    set<itemp> get_items(function<bool(itemp)> filter = nullptr);
 
 };
 
 
-class grammer {
+class grammar {
 public:
-    grammer() = default;
+    grammar() = default;
 
-    grammer(const grammer &g);
+    grammar(const grammar &g);
 
-    ~grammer();
+    ~grammar();
 
     vector<nodep> nodes;//nodes sequenced by the appearance order of left node.
     map<string, nodep> all_vertices;
@@ -105,7 +106,7 @@ public:
 
 
     /*------LL(1)-------*/
-    grammer *eliminate_left_recursion();
+    grammar *eliminate_left_recursion();
 
 
     map<nodep, set<nodep>> first;
@@ -129,18 +130,22 @@ public:
     /*------LR(0)-------*/
 
     map<set<itemp>, closurep> closures;
+
     closurep get_closure(set<itemp> items);
 
-    closurep head_closure= nullptr;
+    closurep head_closure = nullptr;
+
     void build_closures();
 
-
     void print_closures();
+
+//    map<pair<closurep,nodep>, >;
 
 };
 
 
 class item {
+    //LR(0) item
 public:
     item(nodep left, vector<nodep> rule, int dot_position);
 
@@ -155,18 +160,29 @@ public:
 
     string to_string(string prefix = "");
 
+    enum kind {
+        RDC,//reduce
+        ACC,//accept
+        SFT,//shift
+        TRD,//to be reduced
+    };
+
+    kind get_kind();
+    std::string get_kind_str();
 
 };
 
 class closure {
 public:
     closure(set<itemp> s);
+
     int mycnt;
     bool expanded = false;
     set<itemp> items;
     map<nodep, closurep> go;
 
     void expand();
+
     string to_string();
 
 private:
@@ -174,5 +190,4 @@ private:
 };
 
 
-
-#endif //ERVINCC_GRAMMER_H
+#endif //ERVINCC_GRAMMAR_H

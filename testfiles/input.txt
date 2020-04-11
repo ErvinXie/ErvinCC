@@ -1,6 +1,5 @@
 S':
     S
 S:
-    a S S b
-    a S S S
-    c
+    S a S b
+    e
