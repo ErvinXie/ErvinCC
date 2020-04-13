@@ -1,0 +1,17 @@
+1 S :  goto 2
+1 a :  shift 3
+2 # :  acc
+3 A :  goto 4
+3 # :  reduce A -> epsilon
+3 c :  shift 5
+4 # :  reduce S -> a A
+5 A :  goto 6
+5 c :  shift 7
+5 d :  reduce A -> epsilon
+6 d :  shift 8
+7 A :  goto 9
+7 c :  shift 7
+7 d :  reduce A -> epsilon
+8 # :  reduce A -> c A d
+9 d :  shift 10
+10 d :  reduce A -> c A d

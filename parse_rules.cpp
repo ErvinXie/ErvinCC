@@ -19,19 +19,25 @@ grammar *x = new grammar();
 
 
 int main() {
-    freopen("../testfiles/input.txt", "r", stdin);
-    freopen("../testfiles/output.txt", "w", stdout);
+    freopen("../testfiles/rules.txt", "r", stdin);
+    freopen("../testfiles/lr1.txt", "w", stdout);
     x->read_rules();
-    x->print_rules();
+//    x->print_rules();
 
-//    cout << "Eliminate Left Recursion" << endl;
-    x = x->eliminate_left_recursion();
-    x->print_rules();
-    x->print_first();
-    x->print_follow();
-    x->print_LL1form();
-//    x->build_closures();
-//    x->print_closures();
+//    LL(1)
+//    x = x->eliminate_left_recursion();
+//    x->print_rules();
+//    x->print_first();
 //    x->print_follow();
+//    x->print_LL1form();
+
+//     SLR(1)
+//    x->print_lr0_closures(false);
+//    x->print_follow();
+//    x->print_SLR1form();
+
+//    LR(1)
+    x->print_lr1_closures(false);
+    x->print_LR1form();
     return 0;
 }

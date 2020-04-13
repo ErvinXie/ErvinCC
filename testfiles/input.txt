@@ -1,5 +1,9 @@
 S':
     S
+
 S:
-    S a S b
-    e
+    a A
+
+A:
+    c A d
+    epsilon

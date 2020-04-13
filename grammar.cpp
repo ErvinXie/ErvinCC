@@ -4,33 +4,33 @@
 
 #include "grammar.h"
 
-grammer_node::grammer_node(string name, class grammar *g) : name(name), grammar(g) {
+grammar_node::grammar_node(string name, class grammar *g) : name(name), grammar(g) {
 //    cout << name << endl;
 }
 
-void grammer_node::add(vector<string> x) {
+void grammar_node::add_rule(vector<string> x) {
     vector<nodep> t;
-    for (auto s:x) {
-        t.push_back(grammar->next_node(s));
+    for (const auto &s:x) {
+        if (s != "epsilon")
+            t.push_back(grammar->get_node(s));
     }
     rules.push_back(t);
 }
 
-string grammer_node::to_string() {
+string grammar_node::to_string() {
     string re;
     string indent = "    ";
     re += name + ": \n";
-    for (auto r:rules) {
+    for (const auto &r:rules) {
         re += indent;
-        for (int i = 0; i < r.size(); i++) {
-            re += r[i]->name + " ";
-        }
+
+        re += rule_to_string(r);
         re += "\n";
     }
     return re;
 }
 
-string grammer_node::to_text() {
+string grammar_node::to_text() {
     string re = "";
     string indent = "    ";
 //        re += "\\begin{equation}\n";
@@ -53,7 +53,7 @@ string grammer_node::to_text() {
     return re;
 }
 
-void grammer_node::substitute(nodep v) {
+void grammar_node::substitute(nodep v) {
 //    cerr<<this->name<<" substitute "<<v->name<<endl;
     for (auto r:v->rules) {
         for (auto n:r) {
@@ -82,7 +82,7 @@ void grammer_node::substitute(nodep v) {
     }
 }
 
-void grammer_node::substitute_first(nodep v) {
+void grammar_node::substitute_first(nodep v) {
 //    cerr<<this->name<<" first substitute "<<v->name<<endl;
     for (auto r:v->rules) {
         if (r.front() == v) {
@@ -94,6 +94,8 @@ void grammer_node::substitute_first(nodep v) {
     for (int i = 0; i < rules.size(); i++) {
 //        cerr << this->to_string() << endl;
         auto r = rules[i];
+        if (r.empty())
+            continue;
         auto n = r[0];
         if (n == v) {
             rules.erase(rules.begin() + i);
@@ -107,14 +109,14 @@ void grammer_node::substitute_first(nodep v) {
     }
 }
 
-set<nodep> grammer_node::get_first() {
+set<nodep> grammar_node::get_first(set<nodep> fathers) {
+    fathers.insert(this);
     if (first.empty()) {
         set<nodep> re;
-        if (grammar->isvt(this)) {
+        if (is_vt()) {
             re.insert(this);
         } else {
-            get_first_by_rule();
-            for (auto x:first_by_rule)
+            for (auto x:get_first_by_rule(fathers))
                 re.insert(x.begin(), x.end());
         }
         first = re;
@@ -122,29 +124,33 @@ set<nodep> grammer_node::get_first() {
     return first;
 }
 
-vector<set<nodep>> grammer_node::get_first_by_rule() {
+vector<set<nodep>> grammar_node::get_first_by_rule(set<nodep> fathers) {
+    fathers.insert(this);
     if (first_by_rule.empty()) {
         vector<set<nodep>> re;
         for (auto r:rules) {
             set<nodep> s;
             for (int i = 0; i < r.size(); i++) {
-                if (r[i]->grammar->isvt(r[i]))
-                    s.insert(r[i]);
-                else {
-                    if (r[i] != this) {
-                        auto x = r[i]->get_first();
-                        for (auto xx:x) {
-                            if (xx != grammar->next_node("epsilon"))
-                                s.insert(xx);
+                auto &word_i = r[i];
+                if (word_i->is_vt()) {
+                    s.insert(word_i);
+                } else {
+                    if (fathers.count(word_i) == 0) {
+                        auto word_i_first = word_i->get_first(fathers);
+                        for (auto x:word_i_first) {
+                            if (x != grammar->get_node("epsilon"))
+                                s.insert(x);
                         }
                     }
                 }
-                if (r[i]->de_epsilon() == false)
+                if (!word_i->de_epsilon(set<nodep>()))
                     break;
                 if (i == r.size() - 1) {
-                    s.insert(grammar->next_node("epsilon"));
+                    s.insert(grammar->get_node("epsilon"));
                 }
             }
+            if (r.empty())
+                s.insert(grammar->get_node("epsilon"));
             re.push_back(s);
         }
         first_by_rule = re;
@@ -152,107 +158,121 @@ vector<set<nodep>> grammer_node::get_first_by_rule() {
     return first_by_rule;
 }
 
-grammer_node::~grammer_node() {}
+grammar_node::~grammar_node() {}
 
-bool grammer_node::de_epsilon() {
-    if (name == "epsilon")
-        return true;
-    for (auto r:rules) {
-        bool ok = true;
+bool grammar_node::de_epsilon(set<nodep> fathers) {
+    fathers.insert(this);
+    for (const auto &r:rules) {
+        bool might_epsilon = true;
         for (auto n:r) {
-            if (n != this) {
-                if (n->de_epsilon() == false) {
-                    ok = false;
-                    break;
-                }
+            if (fathers.count(this) == 0 && n->de_epsilon(fathers) == false) {
+                might_epsilon = false;
+                break;
             }
         }
-        if (ok)
+        if (might_epsilon)
             return true;
     }
     return false;
 }
 
-set<itemp> grammer_node::get_items(function<bool(itemp)> filter) {
-    set<itemp> re;
-    for (auto r:rules) {
+set<lr0_itemp> grammar_node::get_lr0_items(function<bool(lr0_itemp)> filter) {
+    set<lr0_itemp> re;
+    for (const auto &r:rules) {
         for (int i = 0; i <= r.size(); i++) {
-            if (filter == nullptr || filter(get_item(r, i)))
-                re.insert(get_item(r, i));
+            if (filter == nullptr || filter(get_lr0_item(r, i)))
+                re.insert(get_lr0_item(r, i));
         }
     }
     return re;
 }
 
-itemp grammer_node::get_item(vector<nodep> rule, int pos) {
 
-    if (itemps.count({rule, pos}) == 0) {
-        auto x = new item(this, rule, pos);
-        if (x->dot_position != pos) {
-            itemps[{rule, pos}] = get_item(rule, x->dot_position);
-        } else {
-            itemps[{rule, pos}] = x;
-        }
+lr0_itemp grammar_node::get_lr0_item(vector<nodep> rule, int pos) {
+    if (all_lr0_items.count({rule, pos}) == 0) {
+        auto x = new lr0_item(this, rule, pos);
+        all_lr0_items[{rule, pos}] = x;
     }
-    return itemps[{rule, pos}];
+    return all_lr0_items[{rule, pos}];
 }
 
-bool grammer_node::is_vt() {
+lr1_itemp grammar_node::get_lr1_item(vector<nodep> rule, int pos, nodep search_char) {
+    if (all_lr1_items.count({rule, {pos, search_char}}) == 0) {
+        auto x = new lr1_item(this, rule, pos, search_char);
+        all_lr1_items[{rule, {pos, search_char}}] = x;
+    }
+    return all_lr1_items[{rule, {pos, search_char}}];
+}
+
+bool grammar_node::is_vt() {
     return rules.empty();
 }
 
+set<nodep> grammar_node::get_follow() {
+    return grammar->get_follow()[this];
+}
 
-nodep grammar::next_node(string name) {
-    if (all_vertices.count(name) == 0) {
-        all_vertices[name] = new grammer_node(name, this);
+string grammar_node::rule_to_string(vector<nodep> rule) {
+    string re = "";
+    if (rule.empty())
+        re += "epsilon ";
+    for (auto n:rule) {
+        re += n->name + " ";
     }
-    return all_vertices[name];
+    return re;
+}
+
+
+nodep grammar::get_node(string s) {
+    if (all_nodes.count(s) == 0) {
+        all_nodes[s] = new grammar_node(s, this);
+    }
+    return all_nodes[s];
 }
 
 void grammar::read_rules() {
     char line[1000];
-    nodep now = nullptr;
+    nodep now_left = nullptr;
     bool oneof = false;
     while (cin.getline(line, 1000)) {
-        vector<string> xs = split(line);
-        if (xs.empty())
+        vector<string> words = split_space(line);
+        if (words.empty())
             continue;
-        if (xs[0] == "fuck")
+        if (words[0] == "fuck")
             break;
 
-        if (xs[0].back() == ':' && xs[0].length() > 1) {
-//            cout<<xs[0].substr(0,xs[0].length()-1)<<endl;
-            string newname = xs[0].substr(0, xs[0].length() - 1);
-            now = next_node(newname);
-            nodes.push_back(now);
-            if (xs.size() >= 3 && xs[xs.size() - 2] == "one" && xs[xs.size() - 1] == "of") {
+        if (words[0].back() == ':' && words[0].length() > 1) {
+//            cout<<words[0].substr(0,words[0].length()-1)<<endl;
+            string left_name = words[0].substr(0, words[0].length() - 1);
+            now_left = get_node(left_name);
+            nodes.push_back(now_left);
+            if (words.size() >= 3 && words[words.size() - 2] == "one" && words[words.size() - 1] == "of") {
                 oneof = true;
             } else {
                 oneof = false;
             }
         } else {
             if (oneof) {
-                for (auto s:xs) {
-                    now->add(vector<string>({s}));
+                for (auto word:words) {
+                    now_left->add_rule(vector<string>({word}));
                 }
             } else {
-
                 map<int, int> opts;
-                for (int i = 0; i < xs.size(); i++) {
-                    string s = xs[i];
-                    if (s.length() >= 3 && s.substr(s.length() - 3, 3) == "opt") {
+                for (int i = 0; i < words.size(); i++) {
+                    auto word_i = words[i];
+                    if (word_i.length() >= 3 && word_i.substr(word_i.length() - 3, 3) == "opt") {
                         opts[i] = opts.size();
                     }
                 }
                 for (int k = 0; k < (1 << opts.size()); k++) {
                     bitset<32> w = k;
                     vector<string> ad;
-                    for (int i = 0; i < xs.size(); i++) {
+                    for (int i = 0; i < words.size(); i++) {
                         if (opts.count(i) == 0) {
-                            ad.push_back(xs[i]);
+                            ad.push_back(words[i]);
                         } else {
                             if (w[opts[i]] == 1) {
-                                ad.push_back(xs[i].substr(0, xs[i].length() - 3));
+                                ad.push_back(words[i].substr(0, words[i].length() - 3));
                             }
                         }
                     }
@@ -261,7 +281,7 @@ void grammar::read_rules() {
 //                }
 //                cout<<endl;
                     if (ad.size())
-                        now->add(ad);
+                        now_left->add_rule(ad);
                 }
             }
         }
@@ -270,7 +290,7 @@ void grammar::read_rules() {
 
 vector<nodep> grammar::get_all_Vn() {
     vector<nodep> re;
-    for (auto x:all_vertices) {
+    for (auto x:all_nodes) {
         if (!x.second->is_vt()) {
             re.push_back(x.second);
         }
@@ -280,7 +300,7 @@ vector<nodep> grammar::get_all_Vn() {
 
 vector<nodep> grammar::get_all_Vt() {
     vector<nodep> re;
-    for (auto x:all_vertices) {
+    for (auto x:all_nodes) {
         if (x.second->is_vt()) {
             re.push_back(x.second);
         }
@@ -289,29 +309,6 @@ vector<nodep> grammar::get_all_Vt() {
 }
 
 vector<nodep> grammar::get_root() {
-//    map<nodep, bool> m;
-//    for (auto x:all_vertices) {
-//        if (m.count(x.second) == 0) {
-//            m[x.second] = true;
-//        }
-//        for (auto r:x.second->rules) {
-//            for (auto p:r) {
-//                if (p != x.second)
-//                    m[p] = false;
-//            }
-//        }
-//    }
-//    vector<nodep> re;
-//    for (auto p:m) {
-//        if (p.second) {
-//            re.push_back(p.first);
-//        }
-//    }
-//    if (re.empty()) {
-//        return vector<nodep>({nodes[0]});
-//    }
-//    return re;
-
     return vector<nodep>({nodes[0]});
 }
 
@@ -347,7 +344,7 @@ void grammar::print_rules(bool tex) {
     printf("All rules:\n");
     for (auto x:nodes) {
         nodep p = x;
-        if (p->rules.size()) {
+        if (!p->rules.empty()) {
             if (tex)
                 printf("%s\n", p->to_text().data());
             else
@@ -359,13 +356,13 @@ void grammar::print_rules(bool tex) {
 
 grammar::grammar(const grammar &g) {
     for (auto n:g.nodes) {
-        auto newn = next_node(n->name);
+        auto newn = get_node(n->name);
         nodes.push_back(newn);
         for (const auto &r:n->rules) {
             vector<nodep> x;
             x.reserve(r.size());
             for (auto nn:r) {
-                x.push_back(next_node(nn->name));
+                x.push_back(get_node(nn->name));
             }
             newn->rules.push_back(x);
         }
@@ -386,13 +383,13 @@ grammar *grammar::eliminate_left_recursion() {
         bool leftr = false;
         for (int j = 0; j < u->rules.size(); j++) {
             auto r = u->rules[j];
-            if (r[0] == u) {
+            if (!r.empty() && r[0] == u) {
                 leftr = true;
                 break;
             }
         }
         if (leftr) {
-            nodep uu = re->next_node(u->name + "'");
+            nodep uu = re->get_node(u->name + "'");
             re->nodes.insert(re->nodes.begin() + i + 1, uu);
             vector<vector<nodep>> unew_compose;
             for (auto r:u->rules) {
@@ -406,7 +403,7 @@ grammar *grammar::eliminate_left_recursion() {
                     unew_compose.push_back(r);
                 }
             }
-            uu->rules.push_back(vector<nodep>({re->next_node("epsilon")}));
+            uu->rules.push_back(vector<nodep>({re->get_node("epsilon")}));
             u->rules = unew_compose;
         }
     }
@@ -415,7 +412,7 @@ grammar *grammar::eliminate_left_recursion() {
         st.push(s);
     }
     set<nodep> vis;
-    while (st.size()) {
+    while (!st.empty()) {
         auto u = st.top();
 //        cout<<"dfs: "<<u->name<<endl;
         st.pop();
@@ -428,7 +425,7 @@ grammar *grammar::eliminate_left_recursion() {
             }
         }
     }
-    for (auto p = re->all_vertices.begin(); p != re->all_vertices.end(); p++) {
+    for (auto p = re->all_nodes.begin(); p != re->all_nodes.end(); p++) {
         if (vis.count(p->second) == 0) {
             cout << "delete " << p->second->name << endl;
 
@@ -441,15 +438,19 @@ grammar *grammar::eliminate_left_recursion() {
             }
 
             delete p->second;
-            all_vertices.erase(p);
+            all_nodes.erase(p);
 
         }
     }
     return re;
 }
 
+void grammar::elimiante_common_left() {
+
+}
+
 grammar::~grammar() {
-    for (auto p:all_vertices) {
+    for (auto p:all_nodes) {
         delete p.second;
     }
 }
@@ -459,13 +460,13 @@ void grammar::print_first() {
     set<nodep> Vt;
     for (auto n:get_all_Vt())
         Vt.insert(n);
-    for (auto p:all_vertices) {
+    for (auto p:all_nodes) {
         auto u = p.second;
         if (isvt(u))
             continue;
-        auto f = u->get_first_by_rule();
+        auto f = u->get_first_by_rule(set<nodep>());
         cout << u->name << ":" << endl;
-        for (auto x:u->get_first()) {
+        for (auto x:u->get_first(set<nodep>())) {
             cout << "    " << x->name << endl;
         }
         cout << endl;
@@ -490,42 +491,39 @@ bool grammar::isvt(nodep x) {
 }
 
 map<nodep, set<nodep>> grammar::get_follow() {
-    if (follow.size())
+    if (!follow.empty())
         return follow;
 
     map<nodep, set<nodep> > last;
     map<nodep, set<nodep> > re;
-    re[get_root()[0]].insert(next_node("#"));
+    re[get_root()[0]].insert(get_node("#"));
     while (last != re) {
         last = re;
-        for (auto p:all_vertices) {
+        for (const auto &p:all_nodes) {
             auto u = p.second;
-            if (isvt(u))
+            if (u->is_vt())
                 continue;
             for (auto r:u->rules) {
-                for (int i = 0; i < r.size() - 1; i++) {
-                    if (isvt(r[i]))
+                for (int i = 0; i < (int) r.size() - 1; i++) {
+                    if (r[i]->is_vt())
                         continue;
-//                    if (r[i + 1]->name == "epsilon")
-//                        continue;
                     for (int j = i + 1; j < r.size(); j++) {
-                        for (auto x:r[j]->get_first()) {
+                        for (auto x:r[j]->get_first(set<nodep>())) {
                             if (x->name != "epsilon") {
                                 re[r[i]].insert(x);
                             }
                         }
-                        if (r[j]->de_epsilon() == false)
+                        if (!r[j]->de_epsilon(set<nodep>()))
                             break;
                     }
                 }
             }
             for (auto r:u->rules) {
-                if (!isvt(r.back())) {
+                if (!r.empty() && !r.back()->is_vt()) {
                     re[r.back()].insert(re[u].begin(), re[u].end());
                 }
-
-                for (int i = r.size() - 1; i > 0; i--) {
-                    if (r[i]->de_epsilon()) {
+                for (int i = (int) r.size() - 1; i > 0; i--) {
+                    if (r[i]->de_epsilon(set<nodep>())) {
                         if (isvt(r[i - 1]))
                             continue;
                         re[r[i - 1]].insert(re[u].begin(), re[u].end());
@@ -537,12 +535,12 @@ map<nodep, set<nodep>> grammar::get_follow() {
         }
     }
     follow = re;
-    return re;
+    return follow;
 }
 
 void grammar::print_follow() {
     cout << "----Follow:----" << endl;
-    for (auto p:get_follow()) {
+    for (const auto &p:get_follow()) {
         cout << p.first->name << ": " << endl;
         for (auto x:p.second) {
             cout << "    " << x->name << endl;
@@ -551,18 +549,18 @@ void grammar::print_follow() {
 }
 
 map<nodep, set<nodep>> grammar::get_first() {
-    if (first.size())
+    if (!first.empty())
         return first;
     map<nodep, set<nodep>> re;
     for (auto x:get_all_Vn()) {
-        re[x] = x->get_first();
+        re[x] = x->get_first(set<nodep>());
     }
     first = re;
     return re;
 }
 
 map<pair<nodep, nodep>, vector<vector<nodep>>> grammar::get_LL1form() {
-    if (LL1form.size()) {
+    if (!LL1form.empty()) {
         return LL1form;
     }
 
@@ -570,19 +568,19 @@ map<pair<nodep, nodep>, vector<vector<nodep>>> grammar::get_LL1form() {
     get_follow();
     get_first();
 
-    for (auto p:all_vertices) {
+    for (const auto &p:all_nodes) {
         auto u = p.second;
 
-        auto ufi = u->get_first_by_rule();
-        auto ufo = follow[u];
+        auto first_set = u->get_first_by_rule(set<nodep>());
+        auto ufollow = follow[u];
         for (int i = 0; i < u->rules.size(); i++) {
             auto r = u->rules[i];
-            if (ufi[i].count(next_node("epsilon"))) {
-                for (auto a:ufo) {
+            if (first_set[i].count(get_node("epsilon"))) {
+                for (auto a:ufollow) {
                     re[{u, a}].push_back(r);
                 }
             } else {
-                for (auto a:ufi[i]) {
+                for (auto a:first_set[i]) {
                     re[{u, a}].push_back(r);
                 }
             }
@@ -595,77 +593,250 @@ map<pair<nodep, nodep>, vector<vector<nodep>>> grammar::get_LL1form() {
 void grammar::print_LL1form() {
     cout << "----LL1 form----" << endl;
     get_LL1form();
-    for (auto p: LL1form) {
-        printf("%s %s\n", p.first.first->name.data(), p.first.second->name.data());
-        for (auto r:p.second) {
-            printf("    ");
-            for (auto n:r) {
-                printf("%s ", n->name.data());
-            }
-            printf("\n");
-        }
+    for (const auto &p: LL1form) {
+        cout << p.first.first->name << " " << p.first.second->name << endl;
+        for (const auto &r:p.second)
+            cout << "    " << grammar_node::rule_to_string(r) << endl;
     }
 }
 
-closurep grammar::get_closure(set<itemp> items) {
-    set<itemp> last;
+lr0_closurep grammar::get_lr0_closure(set<lr0_itemp> items) {
+    set<lr0_itemp> last;
     while (items != last) {
         last = items;
         for (auto x:items) {
-            auto y = x->get_closure_items();
+            auto y = x->expand_closure_items();
             items.insert(y.begin(), y.end());
         }
     }
-    if (!closures.count(items))
-        closures[items] = new closure(items);
-    return closures[items];
+    if (!lr0_closures.count(items))
+        lr0_closures[items] = new lr0_closure(items);
+    return lr0_closures[items];
 }
 
-void grammar::build_closures() {
-    auto c = get_closure(get_root()[0]->get_items([](itemp p) -> bool { return p->dot_position == 0; }));
+lr1_closurep grammar::get_lr1_closure(set<lr1_itemp> items) {
+    set<lr1_itemp> last;
+    while (items != last) {
+        last = items;
+        for (auto x:items) {
+            auto y = x->expand_closure_items();
+            items.insert(y.begin(), y.end());
+        }
+    }
+    if (!lr1_closures.count(items))
+        lr1_closures[items] = new lr1_closure(items);
+    return lr1_closures[items];
+}
+
+void grammar::build_lr0_closures() {
+    auto c = get_lr0_closure(get_root()[0]->get_lr0_items([](lr0_itemp p) -> bool { return p->dot_position == 0; }));
     c->expand();
-    head_closure = c;
+    head_lr0_closure = c;
+}
+
+void grammar::build_lr1_closures() {
+    auto x = get_root()[0]->get_lr1_item(get_root()[0]->rules[0], 0, get_node("#"));
+    auto c = get_lr1_closure(set({x}));
+    c->expand();
+    head_lr1_closure = c;
 }
 
 
-void grammar::print_closures() {
-    vector<closurep> c;
-    for (auto p:closures) {
-        c.push_back(p.second);
+void grammar::print_lr0_closures(bool dot) {
+    cout << "----LR0 Closures----" << endl;
+    if (lr0_closures.empty())
+        build_lr0_closures();
+
+
+    if (dot) {
+        string indent = "    ";
+        set<lr0_closurep> vis;
+        stack<lr0_closurep> st;
+        st.push(head_lr0_closure);
+        vis.insert(head_lr0_closure);
+        while (!st.empty()) {
+            auto c = st.top();
+            st.pop();
+            string label = "I-";
+            label += ::to_string(c->lr0_closure_cnt) + "\n";
+            for (auto i:c->itemps) {
+                label += i->to_string("");
+            }
+            cout << indent << c->lr0_closure_cnt << " [label=\"" << label << "\"]" << endl;
+            for (auto g:c->go) {
+                cout << indent << c->lr0_closure_cnt << "->" << g.second->lr0_closure_cnt
+                     << " [label=\"" << g.first->name << "\"]" << endl;
+                if (vis.count(g.second) == 0) {
+                    st.push(g.second);
+                    vis.insert(g.second);
+                }
+            }
+        }
+    } else {
+        vector<lr0_closurep> c;
+        for (const auto &p:lr0_closures) {
+            c.push_back(p.second);
+        }
+        sort(c.begin(), c.end(),
+             [](lr0_closurep a, lr0_closurep b) { return a->lr0_closure_cnt < b->lr0_closure_cnt; });
+
+        for (auto p:c) {
+            cout << p->to_string();
+        }
     }
-    sort(c.begin(), c.end(), [](closurep a, closurep b) -> bool { return a->mycnt < b->mycnt; });
-    for (auto p:c) {
-        cout << p->to_string();
+}
+
+void grammar::print_lr1_closures(bool dot) {
+
+    cout << "----LR1 Closures----" << endl;
+    if (lr1_closures.empty())
+        build_lr1_closures();
+
+    if (dot) {
+        string indent = "    ";
+        set<lr1_closurep> vis;
+        stack<lr1_closurep> st;
+        st.push(head_lr1_closure);
+        vis.insert(head_lr1_closure);
+        while (!st.empty()) {
+            auto c = st.top();
+            st.pop();
+            string label = "I-";
+            label += ::to_string(c->lr1_closure_cnt) + "\n";
+            for (auto i:c->itemps) {
+                label += i->to_string("");
+            }
+            cout << indent << c->lr1_closure_cnt << " [label=\"" << label << "\"]" << endl;
+            for (auto g:c->go) {
+                cout << indent << c->lr1_closure_cnt << "->" << g.second->lr1_closure_cnt
+                     << " [label=\"" << g.first->name << "\"]" << endl;
+                if (vis.count(g.second) == 0) {
+                    st.push(g.second);
+                    vis.insert(g.second);
+                }
+            }
+        }
+    } else {
+        vector<lr1_closurep> c;
+        for (const auto &p:lr1_closures) {
+            c.push_back(p.second);
+        }
+        sort(c.begin(), c.end(),
+             [](lr1_closurep a, lr1_closurep b) { return a->lr1_closure_cnt < b->lr1_closure_cnt; });
+        for (auto p:c) {
+            cout << p->to_string();
+        }
+    }
+}
+
+map<pair<lr0_closurep, nodep>, vector<string>> grammar::get_SLR1form() {
+    if (!SLR1form.empty())
+        return SLR1form;
+    decltype(SLR1form) re;
+    get_follow();
+    if (lr0_closures.empty())
+        build_lr0_closures();
+    for (const auto &c:lr0_closures) {
+        auto cp = c.second;
+        for (auto g:cp->go) {
+            if (g.first->is_vt()) {
+                re[{cp, g.first}].push_back("shift " + to_string(g.second->lr0_closure_cnt));
+            } else {
+                re[{cp, g.first}].push_back("goto "+to_string(g.second->lr0_closure_cnt));
+            }
+        }
+        for (auto i:cp->itemps) {
+            if (i->get_kind() == lr0_item::RDC) {
+                for (auto fn:follow[i->left]) {
+                    re[{cp, fn}].push_back("reduce "+i->left->name + " -> " + grammar_node::rule_to_string(i->rule));
+                }
+            }
+            if (i->get_kind() == lr0_item::ACC) {
+                for (auto fn:follow[i->left]) {
+                    re[{cp, fn}].push_back("acc");
+                }
+            }
+        }
+    }
+    SLR1form = re;
+    return re;
+}
+
+map<pair<lr1_closurep, nodep>, vector<string>> grammar::get_LR1form() {
+    if (!LR1form.empty())
+        return LR1form;
+    decltype(LR1form) re;
+    get_follow();
+    if (lr1_closures.empty()) {
+        build_lr1_closures();
+    }
+    for (const auto &c:lr1_closures) {
+        auto cp = c.second;
+        for (auto g:cp->go) {
+            if (g.first->is_vt()) {
+                re[{cp, g.first}].push_back("shift " + to_string(g.second->lr1_closure_cnt));
+            } else {
+                re[{cp, g.first}].push_back("goto " + to_string(g.second->lr1_closure_cnt));
+            }
+        }
+        for (auto i:cp->itemps) {
+            if (i->get_kind() == lr0_item::RDC) {
+                re[{cp, i->search_char}].push_back(
+                        "reduce " + i->left->name + " -> " + grammar_node::rule_to_string(i->rule));
+            }
+            if (i->get_kind() == lr0_item::ACC) {
+                for (auto fn:follow[i->left]) {
+                    re[{cp, fn}].push_back("acc");
+                }
+            }
+        }
+    }
+    LR1form = re;
+    return re;
+}
+
+
+void grammar::print_SLR1form() {
+    cout << "----SLR1 form----" << endl;
+    get_SLR1form();
+    for (const auto &p:SLR1form) {
+        for (const auto &x:p.second) {
+            cout << p.first.first->lr0_closure_cnt << " " << p.first.second->name << " : ";
+            cout << " " << x << endl;
+        }
+    }
+}
+
+void grammar::print_LR1form() {
+    cout << "----LR1 form----" << endl;
+    get_LR1form();
+    for (const auto &p:LR1form) {
+        cout << p.first.first->lr1_closure_cnt << " " << p.first.second->name << " : ";
+        for (const auto &x:p.second) {
+            cout << " " << x << endl;
+        }
     }
 }
 
 
-item::item(nodep left, vector<nodep> rule, int dot_position) : left(left), rule(std::move(rule)),
-                                                               dot_position(dot_position) {
-    if (this->rule.size() == 1 && this->rule[0]->name == "epsilon") {
-        this->rule.clear();
-        this->dot_position = 0;
-    }
-}
+lr0_item::lr0_item(nodep left, vector<nodep> rule, int dot_position)
+        : left(left), rule(std::move(rule)), dot_position(dot_position) {}
 
-set<itemp> item::get_closure_items() {
+set<lr0_itemp> lr0_item::expand_closure_items() {
     if (!closure_items.empty())
         return closure_items;
     grammerp g = left->grammar;
-    set<itemp> re;
-    set<itemp> last;
+    set<lr0_itemp> re;
+    set<lr0_itemp> last;
     re.insert(this);
     while (last != re) {
         last = re;
         for (auto p:re) {
             if (p->dot_position < p->rule.size()) {
                 nodep nxt = p->rule[p->dot_position];
-                if (g->isvt(nxt) == false) {
-                    for (auto i:nxt->get_items()) {
-                        if (i->dot_position == 0) {
-                            re.insert(i);
-                        }
-                    }
+                if (!g->isvt(nxt)) {
+                    auto s = nxt->get_lr0_items([](lr0_itemp x) { return x->dot_position == 0; });
+                    re.insert(s.begin(), s.end());
                 }
             }
         }
@@ -673,7 +844,7 @@ set<itemp> item::get_closure_items() {
     return re;
 }
 
-string item::to_string(string prefix) {
+string lr0_item::to_string(string prefix) {
     prefix += left->name + " ->";
     for (int i = 0; i < rule.size(); i++) {
         if (i == dot_position)
@@ -683,14 +854,13 @@ string item::to_string(string prefix) {
     if (dot_position == rule.size())
         prefix += " ·";
 
-    prefix += "  " + get_kind_str();
-
+//    prefix += "  " + get_kind_str();
 
     prefix += "\n";
     return prefix;
 }
 
-item::kind item::get_kind() {
+lr0_item::kind lr0_item::get_kind() {
     if (dot_position == rule.size()) {
         if (left == left->grammar->get_root()[0])
             return ACC;
@@ -705,7 +875,7 @@ item::kind item::get_kind() {
     }
 }
 
-std::string item::get_kind_str() {
+std::string lr0_item::get_kind_str() {
     return std::map<kind, std::string>({
                                                {ACC, "accept"},
                                                {RDC, "reduce"},
@@ -714,28 +884,29 @@ std::string item::get_kind_str() {
                                        })[get_kind()];
 }
 
-int closure::cnt = 0;
 
-closure::closure(set<itemp> s) : items(std::move(s)) {
-    cnt++;
-    mycnt = cnt;
+lr0_closure::lr0_closure(set<lr0_itemp> s) : itemps(std::move(s)) {
+    g = (*itemps.begin())->left->grammar;
+    lr0_closure_cnt = ++g->lr0_closure_cnt;
+    cerr << "creating lr0 closure " << lr0_closure_cnt << endl;
 }
 
-void closure::expand() {
-    if (items.empty())
+void lr0_closure::expand() {
+    cerr << "expanding lr0 closure " << lr0_closure_cnt << endl;
+    if (itemps.empty())
         return;
     expanded = true;
-    grammerp g = (*items.begin())->left->grammar;
+    grammerp g = (*itemps.begin())->left->grammar;
 
-    map<nodep, set<itemp> > nxt;
-    for (auto i:items) {
+    map<nodep, set<lr0_itemp> > nxt;
+    for (auto i:itemps) {
         if (i->dot_position < i->rule.size()) {
             auto nxt_node = i->rule[i->dot_position];
-            nxt[nxt_node].insert(i->left->get_item(i->rule, i->dot_position + 1));
+            nxt[nxt_node].insert(i->left->get_lr0_item(i->rule, i->dot_position + 1));
         }
     }
     for (const auto &p:nxt) {
-        go[p.first] = g->get_closure(p.second);
+        go[p.first] = g->get_lr0_closure(p.second);
     }
     for (const auto &p:go) {
         if (p.second->expanded == false)
@@ -743,10 +914,10 @@ void closure::expand() {
     }
 }
 
-string closure::to_string() {
-    string re = "Closure " + ::to_string(mycnt) + ": \n";
+string lr0_closure::to_string() {
+    string re = "Closure " + ::to_string(lr0_closure_cnt) + ": \n";
 
-    for (auto i:items) {
+    for (auto i:itemps) {
         re += i->to_string("    ");
     }
     re += "\n";
@@ -754,9 +925,125 @@ string closure::to_string() {
         re += "through ";
         re += p.first->name;
         re += " to Closure ";
-        re += ::to_string(p.second->mycnt);
+        re += ::to_string(p.second->lr0_closure_cnt);
         re += "\n";
     }
     re += "\n";
     return re;
+}
+
+lr1_item::lr1_item(nodep left1, vector<nodep> rule1, int dotPosition, nodep search)
+        : lr0_item(left1, rule1, dotPosition), search_char(search) {}
+
+string lr1_item::to_string(string prefix) {
+    prefix += left->name + " ->";
+    for (int i = 0; i < rule.size(); i++) {
+        if (i == dot_position)
+            prefix += " ·";
+        prefix += " " + rule[i]->name;
+    }
+    if (dot_position == rule.size())
+        prefix += " ·";
+
+    prefix += "  with " + search_char->name;
+
+//    prefix += "  " + get_kind_str();
+
+    prefix += "\n";
+    return prefix;
+}
+
+set<lr1_itemp> lr1_item::expand_closure_items() {
+    if (!closure_items.empty())
+        return closure_items;
+    grammerp g = left->grammar;
+    set<lr1_itemp> re;
+    set<lr1_itemp> last;
+    re.insert(this);
+    while (last != re) {
+        last = re;
+        for (auto p:re) {
+            if (p->dot_position < p->rule.size()) {
+                nodep nxt = p->rule[p->dot_position];
+                if (!nxt->is_vt()) {
+                    set<nodep> search_chars;
+                    for (int i = p->dot_position + 1; i < p->rule.size(); i++) {
+                        auto ri = p->rule[i];
+                        auto first_of_ri = ri->get_first(set<nodep>());
+                        search_chars.insert(first_of_ri.begin(), first_of_ri.end());
+                        if (!ri->de_epsilon(set<nodep>())) {
+                            break;
+                        }
+                        if (i == (int) p->rule.size() - 1) {
+                            search_chars.insert(g->get_node("#"));
+                        }
+                    }
+                    if (search_chars.empty()) {
+                        search_chars.insert(g->get_node("#"));
+                    }
+
+//                    for (auto x:search_chars) {
+//                        cout << x->name << " ";
+//                    }
+//                    cout << endl;
+
+                    for (const auto &r:nxt->rules) {
+//                        cout<<nxt->rule_to_string(r)<<endl;
+                        for (auto s:search_chars) {
+//                            cout << nxt->get_lr1_item(r, 0, s)->to_string() << endl;
+                            re.insert(nxt->get_lr1_item(r, 0, s));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return re;
+}
+
+lr1_closure::lr1_closure(set<lr1_itemp> s) : itemps(s) {
+    g = (*s.begin())->left->grammar;
+    lr1_closure_cnt = ++g->lr1_closure_cnt;
+    cerr << "creating lr1 closure " << lr1_closure_cnt << endl;
+}
+
+string lr1_closure::to_string() {
+    string re = "Closure " + ::to_string(lr1_closure_cnt) + ": \n";
+
+    for (auto i:itemps) {
+        re += i->to_string("    ");
+    }
+    re += "\n";
+    for (auto p:go) {
+        re += "through ";
+        re += p.first->name;
+        re += " to Closure ";
+        re += ::to_string(p.second->lr1_closure_cnt);
+        re += "\n";
+    }
+    re += "\n";
+    return re;
+}
+
+void lr1_closure::expand() {
+    cerr << "expanding lr1 closure " << lr1_closure_cnt << endl;
+    if (itemps.empty())
+        return;
+    expanded = true;
+    grammerp g = (*itemps.begin())->left->grammar;
+
+    map<nodep, set<lr1_itemp> > nxt;
+    for (auto i:itemps) {
+        if (i->dot_position < i->rule.size()) {
+            auto nxt_node = i->rule[i->dot_position];
+            nxt[nxt_node].insert(i->left->get_lr1_item(i->rule, i->dot_position + 1, i->search_char));
+        }
+    }
+    for (const auto &p:nxt) {
+        go[p.first] = g->get_lr1_closure(p.second);
+    }
+    for (const auto &p:go) {
+        if (p.second->expanded == false)
+            p.second->expand();
+    }
 }

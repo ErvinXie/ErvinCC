@@ -15,38 +15,47 @@
 
 using namespace std;
 
-class grammer_node;
+class grammar_node;
 
-typedef grammer_node *nodep;
+typedef grammar_node *nodep;
 
 class grammar;
 
 typedef grammar *grammerp;
 
 // LR(0) 的项目
-class item;
+class lr0_item;
 
-typedef item *itemp;
+typedef lr0_item *lr0_itemp;
 
-class closure;
+class lr0_closure;
 
-typedef closure *closurep;
+typedef lr0_closure *lr0_closurep;
+
+//LR(1)项目
+class lr1_item;
+
+typedef lr1_item *lr1_itemp;
+
+class lr1_closure;
+
+typedef lr1_closure *lr1_closurep;
 
 
-class grammer_node {
+class grammar_node {
 private:
     set<nodep> first;
     vector<set<nodep>> first_by_rule;
 public:
-    grammer_node(string name, class grammar *g);
+    grammar_node(string name, class grammar *g);
 
-    ~grammer_node();
+    ~grammar_node();
 
     string name;
     vector<vector<nodep> > rules;
     grammar *grammar;
 
-    void add(vector<string> x);
+    void add_rule(vector<string> x);
 
     void substitute(nodep v);
 
@@ -54,24 +63,33 @@ public:
 
     string to_string();
 
+    static string rule_to_string(vector<nodep> rule);
+
     string to_text();
 
 
-    set<nodep> get_first();
+    set<nodep> get_first(set<nodep> fathers = set<nodep>({}));
 
+    set<nodep> get_follow();
 
-    vector<set<nodep>> get_first_by_rule();
+    vector<set<nodep>> get_first_by_rule(set<nodep> fathers= set<nodep>({}));
 
-    bool de_epsilon();//能否推导出epsilon
+    bool de_epsilon(set<nodep> fathers = set<nodep>({}));//能否推导出epsilon
     bool is_vt();
 
 
     //LR(0)
-    map<pair<vector<nodep>, int>, itemp> itemps;
+    map<pair<vector<nodep>, int>, lr0_itemp> all_lr0_items;
 
-    itemp get_item(vector<nodep> rule, int pos);
+    lr0_itemp get_lr0_item(vector<nodep> rule, int pos);
 
-    set<itemp> get_items(function<bool(itemp)> filter = nullptr);
+    set<lr0_itemp> get_lr0_items(function<bool(lr0_itemp)> filter = nullptr);
+
+    //LR(1)
+    map<pair<vector<nodep>, pair<int, nodep> >, lr1_itemp> all_lr1_items;
+
+    lr1_itemp get_lr1_item(vector<nodep> rule, int pos, nodep search_char);
+
 
 };
 
@@ -85,9 +103,9 @@ public:
     ~grammar();
 
     vector<nodep> nodes;//nodes sequenced by the appearance order of left node.
-    map<string, nodep> all_vertices;
+    map<string, nodep> all_nodes;
 
-    nodep next_node(string s);
+    nodep get_node(string s);
 
 
     void read_rules();
@@ -102,12 +120,14 @@ public:
 
     bool isvt(nodep x);
 
+
     vector<nodep> get_root();
 
 
     /*------LL(1)-------*/
     grammar *eliminate_left_recursion();
 
+    void elimiante_common_left();
 
     map<nodep, set<nodep>> first;
 
@@ -129,34 +149,60 @@ public:
 
     /*------LR(0)-------*/
 
-    map<set<itemp>, closurep> closures;
+    map<set<lr0_itemp>, lr0_closurep> lr0_closures;
 
-    closurep get_closure(set<itemp> items);
+    lr0_closurep get_lr0_closure(set<lr0_itemp> items);
 
-    closurep head_closure = nullptr;
+    lr0_closurep head_lr0_closure = nullptr;
 
-    void build_closures();
+    int lr0_closure_cnt = 0;
 
-    void print_closures();
+    void build_lr0_closures();
 
-//    map<pair<closurep,nodep>, >;
+    void print_lr0_closures(bool dot=false);
+
+    map<pair<lr0_closurep, nodep>, vector<string>> SLR1form;
+
+    map<pair<lr0_closurep, nodep>, vector<string>> get_SLR1form();
+
+    void print_SLR1form();
+
+    /*------LR(1)-------*/
+
+    map<set<lr1_itemp>, lr1_closurep> lr1_closures;
+
+    lr1_closurep get_lr1_closure(set<lr1_itemp> items);
+
+    lr1_closurep head_lr1_closure = nullptr;
+
+    int lr1_closure_cnt = 0;
+
+    void build_lr1_closures();
+
+    void print_lr1_closures(bool dot=false);
+
+    map<pair<lr1_closurep, nodep>, vector<string>> LR1form;
+
+    map<pair<lr1_closurep, nodep>, vector<string>> get_LR1form();
+
+    void print_LR1form();
 
 };
 
 
-class item {
-    //LR(0) item
+class lr0_item {
+    //LR(0) lr0_item
 public:
-    item(nodep left, vector<nodep> rule, int dot_position);
+    lr0_item(nodep left, vector<nodep> rule, int dot_position);
 
     nodep left;
     vector<nodep> rule;
     int dot_position;
 
 
-    set<itemp> closure_items;
+    set<lr0_itemp> closure_items;
 
-    set<itemp> get_closure_items();
+    set<lr0_itemp> expand_closure_items();
 
     string to_string(string prefix = "");
 
@@ -168,25 +214,53 @@ public:
     };
 
     kind get_kind();
-    std::string get_kind_str();
 
+    std::string get_kind_str();
 };
 
-class closure {
-public:
-    closure(set<itemp> s);
 
-    int mycnt;
+class lr0_closure {
+public:
+    explicit lr0_closure(set<lr0_itemp> s);
+
+    grammerp g;
+    int lr0_closure_cnt;
     bool expanded = false;
-    set<itemp> items;
-    map<nodep, closurep> go;
+    set<lr0_itemp> itemps;
+    map<nodep, lr0_closurep> go;
+
+    void expand();
+
+    string to_string();
+};
+
+class lr1_item : public lr0_item {
+public:
+    lr1_item(nodep left1, vector<nodep> rule1, int dotPosition, nodep search);
+
+    nodep search_char;
+
+    set<lr1_itemp> closure_items;
+
+    set<lr1_itemp> expand_closure_items();
+
+    string to_string(string prefix = "");
+};
+
+class lr1_closure {
+public:
+    explicit lr1_closure(set<lr1_itemp> s);
+
+    grammerp g;
+    int lr1_closure_cnt;
+    bool expanded = false;
+    set<lr1_itemp> itemps;
+    map<nodep, lr1_closurep> go;
 
     void expand();
 
     string to_string();
 
-private:
-    static int cnt;
 };
 
 

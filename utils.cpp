@@ -14,7 +14,7 @@ map<char, string> esc({
                               {'~',  "\\sim"}
                       });
 
-vector<string> split(string s) {
+vector<string> split_space(string s) {
     vector<string> re;
     string x;
     for (auto c:s) {

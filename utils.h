@@ -9,7 +9,7 @@
 #include <map>
 using namespace std;
 
-vector <string> split(string s);
+vector <string> split_space(string s);
 string texlize(string s);
 
 
