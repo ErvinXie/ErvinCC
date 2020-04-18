@@ -20,6 +20,8 @@ grammar *x = new grammar();
 
 int main() {
     freopen("../testfiles/rules.txt", "r", stdin);
+//    freopen("../testfiles/rules_nodes.txt", "w", stdout);
+//    freopen("../testfiles/slr1.txt", "w", stdout);
     freopen("../testfiles/lr1.txt", "w", stdout);
     x->read_rules();
 //    x->print_rules();
@@ -32,9 +34,9 @@ int main() {
 //    x->print_LL1form();
 
 //     SLR(1)
-//    x->print_lr0_closures(false);
-//    x->print_follow();
-//    x->print_SLR1form();
+    x->print_lr0_closures(false);
+    x->print_follow();
+    x->print_SLR1form();
 
 //    LR(1)
     x->print_lr1_closures(false);

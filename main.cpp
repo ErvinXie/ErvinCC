@@ -10,7 +10,7 @@ vector<pair<pair<int, string>, string>> x;
 
 int main() {
     ifstream my;
-    my.open("../testfiles/slr1_form.txt");
+    my.open("../testfiles/lr1_form.txt");
     char t[1000];
     while (my.getline(t,1000)) {
         auto xs = split_space(t);
@@ -18,7 +18,7 @@ int main() {
     }
     sort(x.begin(),x.end());
     ofstream out;
-    out.open("../testfiles/slr1_form2.txt");
+    out.open("../testfiles/lr1_form2.txt");
     auto last = x.begin()->first;
     for(const auto& c:x){
         if(c.first==last){

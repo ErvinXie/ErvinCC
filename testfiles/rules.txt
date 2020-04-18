@@ -30,7 +30,6 @@ declaration-specifiers:
     type-qualifier declaration-specifiers
 
 storage-class-specifier:
-    typedef
     extern
     static
     register
@@ -47,7 +46,7 @@ type-specifier:
     unsigned
     struct-or-union-specifier
     enum-specifier
-    typedef-name
+
 
 type-qualifier:
     const
@@ -81,9 +80,9 @@ struct-declaration:
 
 specifier-qualifier-list:
     type-specifier
-    type-specifier specifier-qualifier-list
+    specifier-qualifier-list type-specifier
     type-qualifier
-    type-qualifier specifier-qualifier-list
+    specifier-qualifier-list type-qualifier
 
 struct-declarator-list:
     struct-declarator
@@ -108,6 +107,8 @@ enumerator:
     enumeration-constant
     enumeration-constant = constant-expression
 
+enumeration-constant:
+    identifier
 
 declarator:
     direct-declarator
@@ -117,7 +118,7 @@ direct-declarator:
     identifier
     ( declarator )
     direct-declarator [ ]
-    direct-declarator [ constants ]
+    direct-declarator [ constant ]
     direct-declarator ( parameter-type-list )
     direct-declarator ( )
     direct-declarator ( identifier-list )
@@ -152,8 +153,12 @@ type-name:
 
 initializer:
     assignment-expression
+    { initializer-list }
+    { initializer-list , }
 
-
+initializer-list:
+    initializer
+    initializer-list , initializer
 
 statement:
     labeled-statement
@@ -205,8 +210,6 @@ iteration-statement:
     for ( declaration ; expression ) statement
     for ( declaration expression ; expression ) statement
 
-
-
 jump-statement:
     goto identifier ;
     continue ;
@@ -214,24 +217,33 @@ jump-statement:
     return ;
     return expression ;
 
-
 primary-expression:
     identifier
     constant
     string-literal
     ( expression )
 
+constant:
+    integer-constant
+    floating-constant
+    enumeration-constant
+    character-constant
+
 postfix-expression:
     primary-expression
-    postfix-expression [ expression ]
-    postfix-expression ( )
-    postfix-expression ( argument-expression-list )
     postfix-expression . identifier
     postfix-expression -> identifier
     postfix-expression ++
     postfix-expression --
-    ( type-name ) { initializer-list }
-    ( type-name ) { initializer-list , }
+    function-call
+    array-access
+
+array-access:
+    postfix-expression [ expression ]
+
+function-call:
+    postfix-expression ( )
+    postfix-expression ( argument-expression-list )
 
 argument-expression-list:
     assignment-expression

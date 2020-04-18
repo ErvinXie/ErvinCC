@@ -742,13 +742,13 @@ map<pair<lr0_closurep, nodep>, vector<string>> grammar::get_SLR1form() {
             if (g.first->is_vt()) {
                 re[{cp, g.first}].push_back("shift " + to_string(g.second->lr0_closure_cnt));
             } else {
-                re[{cp, g.first}].push_back("goto "+to_string(g.second->lr0_closure_cnt));
+                re[{cp, g.first}].push_back("goto " + to_string(g.second->lr0_closure_cnt));
             }
         }
         for (auto i:cp->itemps) {
             if (i->get_kind() == lr0_item::RDC) {
                 for (auto fn:follow[i->left]) {
-                    re[{cp, fn}].push_back("reduce "+i->left->name + " -> " + grammar_node::rule_to_string(i->rule));
+                    re[{cp, fn}].push_back("reduce " + i->left->name + " -> " + grammar_node::rule_to_string(i->rule));
                 }
             }
             if (i->get_kind() == lr0_item::ACC) {
@@ -811,8 +811,8 @@ void grammar::print_LR1form() {
     cout << "----LR1 form----" << endl;
     get_LR1form();
     for (const auto &p:LR1form) {
-        cout << p.first.first->lr1_closure_cnt << " " << p.first.second->name << " : ";
         for (const auto &x:p.second) {
+            cout << p.first.first->lr1_closure_cnt << " " << p.first.second->name << " : ";
             cout << " " << x << endl;
         }
     }

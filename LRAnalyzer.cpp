@@ -5,6 +5,7 @@
 #include "LRAnalyzer.h"
 #include <fstream>
 #include <iostream>
+#include <regex>
 #include "utils.h"
 
 const int error = -1;
@@ -21,19 +22,19 @@ void LRAnalyzer::read_lr1_form(string rule_dir) {
     ifstream rules;
     rules.open(rule_dir);
     char in[1000];
-    int laststate;
-    string lastword;
     while (rules.getline(in, 1000)) {
+//        cout<<in<<endl;
         auto input = split_space(in);
         if (input.size() < 2)
             continue;
         int state = atoi(input[0].data());
+
         string word = input[1];
         if (input[3] == "shift") {
             auto nxt_state = atoi(input[4].data());
-            action[{state, word}] = [nxt_state, this, word]() -> int {
+            action[{state, word}] = [nxt_state, this, word](cnp nd) -> int {
                 state_st.push_back(nxt_state);
-                word_st.push_back(word);
+                node_st.push_back(nd);
                 return shift;
             };
         } else if (input[3] == "reduce") {
@@ -45,12 +46,17 @@ void LRAnalyzer::read_lr1_form(string rule_dir) {
             }
             string reduced = input[4];
             if (action.count({state, word}) == 0) {
-                action[{state, word}] = [this, r, reduced]() -> int {
+                action[{state, word}] = [this, r, reduced](cnp nd) -> int {
+                    auto rn = new cst_node(reduced, std::string());
+
                     for (int i = 0; i < r; i++) {
-                        this->word_st.pop_back();
+                        rn->sons.push_back(node_st.back());
+                        this->node_st.pop_back();
                         this->state_st.pop_back();
                     }
-                    word_st.push_back(reduced);
+                    reverse(rn->sons.begin(), rn->sons.end());
+                    //todo: add sons
+                    node_st.push_back(rn);
                     if (this->go_to.count({state_st.back(), reduced}) == 0) {
                         cout << "goto: " << state_st.back() << " " << reduced << " not found" << endl;
 
@@ -61,48 +67,47 @@ void LRAnalyzer::read_lr1_form(string rule_dir) {
                 };
             }
         } else if (input[3] == "acc") {
-            action[{state, word}] = []() -> int {
+            action[{state, word}] = [](cnp x) -> int {
                 return 0;
             };
         } else if (input[3] == "goto") {
             go_to[{state, word}] = atoi(input[4].data());
         } else {
-            cerr << "Wrong Rules!" << endl;
+            cerr << "Wrong Rules! : " << in << endl;
         }
-
-        laststate = state;
-        lastword = word;
     }
 
     rules.close();
 }
 
-int LRAnalyzer::parse(vector<string> input) {
-    input.push_back("#");
+int LRAnalyzer::parse(vector<string> type, vector<string> token) {
+    type.push_back("#");
+    token.push_back("#");
     state_st.clear();
-    word_st.clear();
+    node_st.clear();
     state_st.push_back(1);
-    word_st.emplace_back("#");
-    debug();
-    int mathing = 1;
+    node_st.push_back(new cst_node("#", ""));
+//    debug();
+    int matching = 1;
     int now = 0;
-    while (mathing > acc && now < input.size()) {
-        auto word = input[now];
+    while (matching > acc && now < type.size()) {
+        auto word = type[now];
 
-        cout<<now<<": "<<word<<endl;
+//        cout << now << ": " << word << endl;
         if (action.count({state_st.back(), word}) == 0) {
-            cout << "action: " << state_st.back() << " " << word << " not found" << endl;
-            mathing = error;
+            cout << "Error at token " << now << " action: " << state_st.back() << " " << word << " not found" << endl;
+            matching = error;
         } else {
-            mathing = action[{state_st.back(), word}]();
-            if (mathing == shift) {
+
+            matching = action[{state_st.back(), word}](new cst_node(word, token[now]));
+            if (matching == shift) {
                 now++;
             }
         }
-        debug();
+//        debug();
 
     }
-    return mathing;
+    return matching;
 }
 
 void LRAnalyzer::debug() {
@@ -113,18 +118,69 @@ void LRAnalyzer::debug() {
     cout << endl;
 
     cout << "word stack: ";
-    for (const auto &i:word_st) {
-        cout << i << " ";
+    for (const auto &i:node_st) {
+        cout << i->type << " ";
     }
     cout << endl;
 }
 
-int main() {
-    LRAnalyzer *a = new LRAnalyzer();
-    a->read_lr1_form("../testfiles/slr1_form.txt");
-    char input[1000];
-    while (cin.getline(input, 1000)) {
-        cout << a->parse(split_space(input)) << endl;
+int main(int argc, char *argv[]) {
+    string lrform = "../testfiles/slr1_form2.txt";
+    string lex_file;
+    string dot_file;
+    string json_file;
+    string png_file;
+    for (int i = 0; i < argc; i++) {
+        if (string(argv[i]) == "-r") {
+            lrform = argv[i + 1];
+            i++;
+        } else {
+            lex_file = argv[i];
+        }
     }
+    for (int i = lex_file.length() - 1; i >= 0; i--) {
+        if (lex_file[i] == '.') {
+            dot_file = lex_file.substr(0, i) + ".dot";
+            json_file = lex_file.substr(0, i) + ".json";
+            png_file = lex_file.substr(0, i) + ".png";
+            break;
+        }
+    }
+    cout << lex_file << endl;
+    cout << dot_file << endl;
+    cout << json_file << endl;
+    cout << png_file << endl;
+
+    LRAnalyzer *a = new LRAnalyzer();
+    ofstream ast(json_file);
+    ifstream lexer_in(lex_file);
+    a->read_lr1_form(lrform);
+    char input[1000];
+    regex r(R"(\[@\d+,\d+:\d+='(.+)',<(.+)>,\d+:\d+\])");
+    vector<string> types, tokens;
+    while (lexer_in.getline(input, 1000)) {
+        string input1 = input;
+        std::sregex_iterator iter(input1.begin(), input1.end(), r);
+        std::sregex_iterator end;
+        string type, value;
+        value = (*iter)[1];
+        type = (*iter)[2];
+        if (type == "EOF")
+            break;
+        types.push_back(type);
+        tokens.push_back(value);
+//        cout << type << " " << value << endl;
+//        cout << a->parse(split_space(input), split_space(input)) << endl;
+//        a->node_st.back()->eliminate();
+//        ast << a->node_st.back()->to_string("", true) << endl;
+    }
+    if (a->parse(types, tokens) == 0) {
+        cout << "OK" << endl;
+        a->node_st.back()->to_ast();
+        a->node_st.back()->to_dot(dot_file);
+        system(("dot -Tpng " + dot_file + " -o " + png_file).data());
+        ast << a->node_st.back()->to_string(true) << endl;
+    }
+    ast.close();
     return 0;
 }
