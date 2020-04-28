@@ -4,13 +4,15 @@
 
 #ifndef ERVINCC_UTILS_H
 #define ERVINCC_UTILS_H
+
 #include <vector>
 #include <string>
 #include <map>
+
 using namespace std;
 
-vector <string> split_space(string s);
-string texlize(string s);
+vector<string> split_space(string s);
 
+string texlize(string s);
 
 #endif //ERVINCC_UTILS_H

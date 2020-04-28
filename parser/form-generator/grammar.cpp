@@ -85,9 +85,11 @@ void grammar_node::substitute(nodep v) {
 void grammar_node::substitute_first(nodep v) {
 //    cerr<<this->name<<" first substitute "<<v->name<<endl;
     for (auto r:v->rules) {
-        if (r.front() == v) {
-            cerr << v->name << " is left recursive" << endl;
-            return;
+        if(r.size()) {
+            if (r.front() == v) {
+                cerr << v->name << " is left recursive" << endl;
+                return;
+            }
         }
     }
 
@@ -1046,4 +1048,34 @@ void lr1_closure::expand() {
         if (p.second->expanded == false)
             p.second->expand();
     }
+}
+
+grammar *x = new grammar();
+
+
+int main() {
+//    freopen("../rule-files/c11-partial-rules.txt", "r", stdin);
+//    freopen("../rule-files/ll1.txt", "r", stdin);
+//    freopen("../rule-files/rules_nodes.txt", "w", stdout);
+//    freopen("../rule-files/slr1.txt", "w", stdout);
+//    freopen("../rule-files/ll1_form.txt", "w", stdout);
+    x->read_rules();
+//    x->print_rules();
+
+//    LL(1)
+//    x = x->eliminate_left_recursion();
+//    x->print_rules();
+//    x->print_first();
+//    x->print_follow();
+//    x->print_LL1form();
+
+//     SLR(1)
+//    x->print_lr0_closures(false);
+//    x->print_follow();
+//    x->print_SLR1form();
+
+//    LR(1)
+    x->print_lr1_closures(false);
+    x->print_LR1form();
+    return 0;
 }

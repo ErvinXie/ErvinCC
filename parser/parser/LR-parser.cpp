@@ -2,11 +2,11 @@
 // Created by 谢威宇 on 2020/4/13.
 //
 
-#include "LRAnalyzer.h"
+#include "LR-parser.h"
 #include <fstream>
 #include <iostream>
 #include <regex>
-#include "utils.h"
+#include "../../utils/utils.h"
 
 const int error = -1;
 const int acc = 0;
@@ -18,7 +18,7 @@ struct x {
 };
 
 
-void LRAnalyzer::read_lr1_form(string rule_dir) {
+void LR::read_lr1_form(string rule_dir) {
     ifstream rules;
     rules.open(rule_dir);
     char in[1000];
@@ -80,7 +80,7 @@ void LRAnalyzer::read_lr1_form(string rule_dir) {
     rules.close();
 }
 
-int LRAnalyzer::parse(vector<string> type, vector<string> token) {
+int LR::parse(vector<string> type, vector<string> token) {
     type.push_back("#");
     token.push_back("#");
     state_st.clear();
@@ -110,7 +110,7 @@ int LRAnalyzer::parse(vector<string> type, vector<string> token) {
     return matching;
 }
 
-void LRAnalyzer::debug() {
+void LR::debug() {
     cout << "state stack: ";
     for (auto i:state_st) {
         cout << i << " ";
@@ -125,20 +125,30 @@ void LRAnalyzer::debug() {
 }
 
 int main(int argc, char *argv[]) {
-    string lrform = "../testfiles/slr1_form2.txt";
+//  -r rule files
+//  -p turn on image output
+
+    string lr_form = "./lr-form.txt";
     string lex_file;
     string dot_file;
     string json_file;
     string png_file;
+    bool ispng = false;
     for (int i = 0; i < argc; i++) {
         if (string(argv[i]) == "-r") {
-            lrform = argv[i + 1];
+            lr_form = argv[i + 1];
             i++;
+        } else if (string(argv[i]) == "-p") {
+            ispng = true;
         } else {
             lex_file = argv[i];
         }
     }
-    for (int i = lex_file.length() - 1; i >= 0; i--) {
+    if (lex_file.empty()) {
+        cerr << "No Lexical File" << endl;
+        return 1;
+    }
+    for (int i = (int) lex_file.length() - 1; i >= 0; i--) {
         if (lex_file[i] == '.') {
             dot_file = lex_file.substr(0, i) + ".dot";
             json_file = lex_file.substr(0, i) + ".json";
@@ -151,10 +161,10 @@ int main(int argc, char *argv[]) {
     cout << json_file << endl;
     cout << png_file << endl;
 
-    LRAnalyzer *a = new LRAnalyzer();
+    auto *a = new LR();
     ofstream ast(json_file);
     ifstream lexer_in(lex_file);
-    a->read_lr1_form(lrform);
+    a->read_lr1_form(lr_form);
     char input[1000];
     regex r(R"(\[@\d+,\d+:\d+='(.+)',<(.+)>,\d+:\d+\])");
     vector<string> types, tokens;
@@ -175,10 +185,12 @@ int main(int argc, char *argv[]) {
 //        ast << a->node_st.back()->to_string("", true) << endl;
     }
     if (a->parse(types, tokens) == 0) {
-        cout << "OK" << endl;
+        cout << "Parse OK" << endl;
         a->node_st.back()->to_ast();
-        a->node_st.back()->to_dot(dot_file);
-        system(("dot -Tpng " + dot_file + " -o " + png_file).data());
+        if (ispng) {
+            a->node_st.back()->to_dot(dot_file);
+            system(("dot -Tpng " + dot_file + " -o " + png_file).data());
+        }
         ast << a->node_st.back()->to_string(true) << endl;
     }
     ast.close();

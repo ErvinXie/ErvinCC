@@ -1,8 +1,9 @@
 cmake_minimum_required(VERSION 3.15)
 project(ErvinCC)
 
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 17)
 
-add_executable(ErvinCC main.cpp utils.cpp)
-add_executable(parse_rules parse_rules.cpp utils.cpp grammar.cpp)
-add_executable(LRAnalyzer LRAnalyzer.cpp utils.cpp cst_node.cpp)
+add_executable(compile compile.cpp)
+add_executable(generate_forms utils/utils.cpp parser/form-generator/grammar.cpp)
+add_executable(scanner scanner/scanner.cpp utils/utils.cpp)
+add_executable(parser parser/parser/LR-parser.cpp utils/utils.cpp parser/parser/cst_node.cpp)

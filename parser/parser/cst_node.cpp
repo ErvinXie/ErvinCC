@@ -7,25 +7,6 @@
 #include <fstream>
 #include <set>
 
-//string cst_node::to_string(string indent, bool recursive) {
-//    string nindent = indent + "    ";
-//    string re = indent + "{\n";
-//
-//    re += nindent + R"("type" : ")" + type + "\"";
-//
-//    for (const auto &p: sons) {
-//        re += ",\n";
-//        if (p.second.second == nullptr) {
-//            re += nindent + "\"" + p.first + "\" : " + p.second.first + "\",\n";
-//        } else {
-//            if (recursive) {
-//                re += p.second.second->to_string(nindent);
-//            }
-//        }
-//    }
-//    re += "\n" + indent + "}\n";
-//    return re;
-//}
 string cst_node::to_string(bool recursive) {
     string re = "{";
     re += R"("type" : ")" + type + "\",";
@@ -93,7 +74,7 @@ void cst_node::eliminate() {
 }
 
 bool cst_node::is_list() {
-    return type.length() >= 4 && type.substr(type.size() - 4, 4) == "list" || type == "translation-unit";
+    return (type.length() >= 4 && type.substr(type.size() - 4, 4) == "list") || type == "translation-unit";
 }
 
 void cst_node::expand_list() {

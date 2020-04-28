@@ -2,8 +2,8 @@
 // Created by 谢威宇 on 2020/4/13.
 //
 
-#ifndef ERVINCC_LRANALYZER_H
-#define ERVINCC_LRANALYZER_H
+#ifndef ERVINCC_LR_PARSER_H
+#define ERVINCC_LR_PARSER_H
 
 #include <string>
 #include <map>
@@ -13,7 +13,7 @@
 
 using namespace std;
 
-class LRAnalyzer {
+class LR {
 public:
     vector<int> state_st;
     vector<cnp> node_st;
@@ -30,4 +30,4 @@ public:
 };
 
 
-#endif //ERVINCC_LRANALYZER_H
+#endif //ERVINCC_LR_PARSER_H

@@ -3,6 +3,7 @@
 //
 
 #include "utils.h"
+
 map<char, string> esc({
                               {'{',  "\\{"},
                               {'}',  "\\}"},
@@ -40,7 +41,7 @@ string texlize(string s) {
         if (esc.count(c)) {
             re += esc[c] + " ";
         } else {
-            if (c == '-' && (last <= 'z' && last >= 'a' || last <= 'Z' && last >= 'A')) {
+            if (c == '-' && ((last <= 'z' && last >= 'a') || (last <= 'Z' && last >= 'A'))) {
                 re += "\\text{-}";
             } else {
                 re.push_back(c);
