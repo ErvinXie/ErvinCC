@@ -1054,10 +1054,10 @@ grammar *x = new grammar();
 
 
 int main() {
-//    freopen("../rule-files/c11-partial-rules.txt", "r", stdin);
+    freopen("../rule-files/c11-partial-rules.txt", "r", stdin);
 //    freopen("../rule-files/ll1.txt", "r", stdin);
 //    freopen("../rule-files/rules_nodes.txt", "w", stdout);
-//    freopen("../rule-files/slr1.txt", "w", stdout);
+    freopen("../rule-files/slr1.txt", "w", stdout);
 //    freopen("../rule-files/ll1_form.txt", "w", stdout);
     x->read_rules();
 //    x->print_rules();
@@ -1070,12 +1070,12 @@ int main() {
 //    x->print_LL1form();
 
 //     SLR(1)
-//    x->print_lr0_closures(false);
-//    x->print_follow();
-//    x->print_SLR1form();
+    x->print_lr0_closures(false);
+    x->print_follow();
+    x->print_SLR1form();
 
 //    LR(1)
-    x->print_lr1_closures(false);
-    x->print_LR1form();
+//    x->print_lr1_closures(false);
+//    x->print_LR1form();
     return 0;
 }

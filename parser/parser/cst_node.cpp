@@ -81,7 +81,10 @@ void cst_node::eliminate() {
 }
 
 bool cst_node::is_list() {
-    return (type.length() >= 4 && type.substr(type.size() - 4, 4) == "list") || type == "translation-unit";
+    return (type.length() >= 4 && type.substr(type.size() - 4, 4) == "list")
+           || type == "translation-unit"
+           || type == "declaration-specifiers"
+           || type == "pointer";
 }
 
 void cst_node::expand_list() {
@@ -159,6 +162,21 @@ string cst_node::to_dot(string outdir) {
     return re;
 }
 
+vector<cnp> cst_node::all_vt() {
+
+    if (is_vt()) {
+        return vector({this});
+    } else {
+        vector<cnp> re;
+        for (auto s:sons) {
+            for (auto vt:s->all_vt()) {
+                re.push_back(vt);
+            }
+        }
+        return re;
+    }
+}
+
 cnp from_string(string str, bool file = false) {
     cnp re;
     string x;
@@ -187,7 +205,7 @@ cnp from_string(string str, bool file = false) {
     } else {
         x = str;
     }
-    cout << x << endl;
+//    cout << x << endl;
     int level = 0;
     int last_comma = 0;
     int last_conn = 0;
@@ -221,7 +239,7 @@ cnp from_string(string str, bool file = false) {
     }
     re = new cst_node(kv.begin()->second.substr(1, kv.begin()->second.length() - 2));
     for (auto p:kv) {
-        cout << p.first << " " << p.second << endl;
+//        cout << p.first << " " << p.second << endl;
         if (p.first == "items") {
             auto &s = p.second;
             last_comma = 0;
