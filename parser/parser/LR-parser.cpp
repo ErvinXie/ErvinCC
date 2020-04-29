@@ -171,7 +171,7 @@ int main(int argc, char *argv[]) {
     while (lexer_in.getline(input, 1000)) {
         string input1 = input;
         std::sregex_iterator iter(input1.begin(), input1.end(), r);
-        std::sregex_iterator end;
+//        std::sregex_iterator end;
         string type, value;
         value = (*iter)[1];
         type = (*iter)[2];

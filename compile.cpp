@@ -35,7 +35,7 @@ int main(int argc, char *argv[]) {
         return 1;
     }
     cout << "Calling Parser" << endl;
-    if (system(("./parser " + name + ".tokens").data()) != 0) {
+    if (system(("./parser " + name + ".tokens -p").data()) != 0) {
         return 1;
     }
     return 0;

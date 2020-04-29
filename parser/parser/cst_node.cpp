@@ -6,15 +6,22 @@
 #include <iostream>
 #include <fstream>
 #include <set>
+#include <regex>
 
 string cst_node::to_string(bool recursive) {
     string re = "{";
-    re += R"("type" : ")" + type + "\",";
+    re += R"("type":")" + type + "\",";
     if (!token.empty()) {
         if (type == "integer-constant" || type == "float-constant")
             re += R"("token":)" + token;
         else if (type == "string-literal" || type == "char-literal") {
-            re += R"("token":"\)" + token.substr(0, token.length() - 1) + R"(\"")";
+            string label;
+            for (int i = 0; i < token.length(); i++) {
+                if (token[i] == '"' || token[i] == '\\')
+                    label.push_back('\\');
+                label.push_back(token[i]);
+            }
+            re += R"("token":")" + label + R"(")";
         } else {
             re += R"("token":")" + token + R"(")";
         }
@@ -35,13 +42,13 @@ string cst_node::to_string(bool recursive) {
             }
             re += "]";
         } else {
-            map<string,int> names;
+            map<string, int> names;
             for (int i = 0; i < sons.size(); i++) {
-                names[sonnames[i]]+=1;
-                if(names[sonnames[i]]==1)
+                names[sonnames[i]] += 1;
+                if (names[sonnames[i]] == 1)
                     re += string("\"" + sonnames[i] + "\":");
                 else
-                    re += string("\"" + sonnames[i]+::to_string(names[sonnames[i]]) + "\":");
+                    re += string("\"" + sonnames[i] + ::to_string(names[sonnames[i]]) + "\":");
 
                 auto p = sons[i];
                 if (recursive) {
@@ -152,45 +159,111 @@ string cst_node::to_dot(string outdir) {
     return re;
 }
 
-
-cst_value::cst_value(int i) : i(i) { type = INT; }
-
-cst_value::cst_value(char c) : c(c) { type = CHA; }
-
-cst_value::cst_value(double f) : f(f) { type = FLT; }
-
-cst_value::cst_value(string s) : s(std::move(s)) { type = STR; }
-
-cst_value::cst_value(cst_node *node) : node(node) { type = NOD; }
-
-cst_value::cst_value(vector<cnp> nodes) : nodes(nodes) { type = NOA; }
-
-string cst_value::to_string() {
-    switch (type) {
-        case INT:
-            return ::to_string(i);
-            break;
-        case CHA:
-            return ::to_string(c);
-            break;
-        case FLT:
-            return ::to_string(f);
-            break;
-        case STR:
-            return s;
-            break;
-        case NOD:
-            return node->to_string(true);
-            break;
-        case NOA:
-            string re = "[";
-            for (int x = 0; x < nodes.size(); x++) {
-                re += nodes[x]->to_string();
-                if (x != nodes.size() - 1)
-                    re += ",";
+cnp from_string(string str, bool file = false) {
+    cnp re;
+    string x;
+    bool instr = false;
+    bool esc = false;
+    if (file == true) {
+        ifstream in(str);
+        char c;
+        in >> noskipws;
+        while (in >> c) {
+            if (esc) {
+                esc = false;
+                x.push_back(c);
+                continue;
             }
-            re += "]";
-            return re;
-            break;
+            if (c == '\\') {
+                esc = true;
+                continue;
+            }
+            if (c == '"')
+                instr = !instr;
+            if (!instr && (c == ' ' || c == '\n'))
+                continue;
+            x.push_back(c);
+        }
+    } else {
+        x = str;
     }
+    cout << x << endl;
+    int level = 0;
+    int last_comma = 0;
+    int last_conn = 0;
+    vector<pair<string, string>> kv;
+    for (int i = 0; i < x.length(); i++) {
+        if (esc) {
+            esc = false;
+            continue;
+        }
+        if (x[i] == '\\') {
+            esc = true;
+        }
+        if (x[i] == '"')
+            instr = !instr;
+        if (!instr) {
+            if (x[i] == '{' || x[i] == '[')
+                level++;
+            if (x[i] == '}' || x[i] == ']')
+                level--;
+            if (level <= 1) {
+                if (x[i] == ':') {
+                    last_conn = i;
+                }
+                if (x[i] == ',' || level == 0) {
+                    kv.push_back({x.substr(last_comma + 2, last_conn - 2 - (last_comma + 2) + 1),
+                                  x.substr(last_conn + 1, i - 1 - (last_conn + 1) + 1)});
+                    last_comma = i;
+                }
+            }
+        }
+    }
+    re = new cst_node(kv.begin()->second.substr(1, kv.begin()->second.length() - 2));
+    for (auto p:kv) {
+        cout << p.first << " " << p.second << endl;
+        if (p.first == "items") {
+            auto &s = p.second;
+            last_comma = 0;
+            for (int i = 0; i < s.length(); i++) {
+                if (esc) {
+                    esc = false;
+                    continue;
+                }
+                if (s[i] == '\\') {
+                    esc = true;
+                }
+                if (s[i] == '"')
+                    instr = !instr;
+                if (instr == false) {
+                    if (s[i] == '{' || s[i] == '[')
+                        level++;
+                    if (s[i] == '}' || s[i] == ']')
+                        level--;
+                    if (level == 0 || (level == 1 && s[i] == ',')) {
+                        auto sub = s.substr(last_comma + 1, i - 1 - (last_comma + 1) + 1);
+//                        cout << sub << endl;
+                        re->sons.push_back(from_string(sub));
+                        last_comma = i;
+                    }
+                }
+            }
+        } else if (p.first == "token") {
+            if (p.second[0] != '"') {
+                re->token = p.second;
+            } else {
+                re->token = p.second.substr(1, p.second.length() - 2);
+            }
+        } else {
+            if (p.first != "type") {
+                re->sonnames.push_back(p.first);
+                re->sons.push_back(from_string(p.second));
+            }
+        }
+    }
+    return re;
 }
+
+
+
+
