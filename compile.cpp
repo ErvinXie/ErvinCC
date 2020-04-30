@@ -12,10 +12,14 @@ using namespace std;
 int main(int argc, char *argv[]) {
     string in_dir;
     string out_dir;
+    bool astpic = false;
     for (int i = 0; i < argc; i++) {
         if (string(argv[i]) == "-o") {
             out_dir = argv[i + 1];
             i++;
+
+        } else if (string(argv[i]) == "-p") {
+            astpic = true;
         } else {
             in_dir = argv[i];
         }
@@ -35,7 +39,7 @@ int main(int argc, char *argv[]) {
         return 1;
     }
     cout << "Calling Parser" << endl;
-    if (system(("./parser " + name + ".tokens ").data()) != 0) {
+    if (system(("./parser " + name + ".tokens" + (astpic ? " -p" : "")).data()) != 0) {
         return 1;
     }
     cout << "Calling Semantic Checker" << endl;

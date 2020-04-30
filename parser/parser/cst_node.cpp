@@ -178,6 +178,18 @@ vector<cnp> cst_node::all_vt() {
     }
 }
 
+string cst_node::content() {
+    if (is_vt())
+        return token;
+    else {
+        string re;
+        for (auto s:sons) {
+            re += s->content() + " ";
+        }
+        return re;
+    }
+}
+
 cnp from_string(string str, bool file = false) {
     cnp re;
     string x;

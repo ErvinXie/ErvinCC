@@ -13,6 +13,7 @@ int main(int argc, char *argv[]) {
     for (int i = 0; i < argc; i++) {
         json_dir = argv[i];
     }
+    cout << json_dir << endl;
     auto p = from_string(json_dir, true);
     semantic s;
     try {
@@ -41,7 +42,7 @@ semantic::semantic() {
 
 
 void semantic::semantic_check(cnp now) {
-//    cout << now->type << " " << now->token << endl;
+    cout << now->type << " " << now->token << endl;
     if (now->type == "translation-unit") {
 
     } else if (now->type == "external-declaration") {
@@ -57,12 +58,14 @@ void semantic::semantic_check(cnp now) {
         auto newFunc = func_table.new_func(rt, name);
         nowfunc = newFunc;
         if (newFunc->defined) {
+            cout << "Around: " << now->content() << endl;
             throw duplicate_definition();
         } else if (newFunc->parameters.empty()) {
             push_parameters(now, newFunc);
         }
         semantic_check(now->sons[2]);
         if (nowfunc->returned == false) {
+            cout << "Around: " << now->content() << endl;
             throw func_not_returned();
         }
         level_down();
@@ -94,6 +97,7 @@ void semantic::semantic_check(cnp now) {
             if (id->type == "init-declarator") {
                 auto r = get_rtype_of_expression(id->sons[2]);
                 if (r.congruent(new_var->r) == false) {
+                    cout << "Around: " << id->content() << endl;
                     throw initializer_not_match();
                 }
             }
@@ -200,15 +204,18 @@ void semantic::semantic_check(cnp now) {
     } else if (now->type == "jump-statement") {
         if (now->sonnames[0] == "goto") {
             if (nowfunc->labels.count(now->sons[1]->token) == 0) {
+                cout << "Around: " << now->content() << endl;
                 throw label_not_exist();
             }
         } else if (now->sonnames[0] == "continue" || now->sonnames[0] == "break") {
             if (iteration_cnt == 0) {
+                cout << "Around: " << now->content() << endl;
                 throw break_or_continue_not_in_loop();
             }
         } else if (now->sonnames[0] == "return") {
             if (now->sonnames[1] == ";") {
                 if (nowfunc->r.f->name != "void") {
+                    cout << "Around: " << now->content() << endl;
                     throw return_type_not_match();
                 }
             } else {
@@ -216,6 +223,7 @@ void semantic::semantic_check(cnp now) {
                 if (r.congruent(nowfunc->r)) {
                     nowfunc->returned = true;
                 } else {
+                    cout << "Around: " << now->content() << endl;
                     throw return_type_not_match();
                 }
             }
@@ -251,6 +259,7 @@ type *semantic::get_type_from_specifier(cnp now) {
 
         auto newType = type_table.new_type(struct_or_union, name);
         if (newType->defined == true && !declist.empty()) {
+            cout << "Around: " << now->content() << endl;
             throw duplicate_type();
         } else {
             newType->defined = true;
@@ -273,11 +282,13 @@ type *semantic::get_type_from_specifier(cnp now) {
                             newType->fields.emplace_back(r, name);
                             auto new_var = var_table.new_var(r, name, scope_level);
                             if (new_var == nullptr) {
+                                cout << "Around: " << struct_declarator->content() << endl;
                                 throw duplicate_definition();
                             }
                             if (struct_declarator->type == "struct-declarator") {
                                 auto rt = get_rtype_of_expression(struct_declarator->sons[2]);
                                 if (new_var->r.congruent(rt) == false) {
+                                    cout << "Around: " << struct_declarator->content() << endl;
                                     throw initializer_not_match();
                                 }
                             }
@@ -307,6 +318,7 @@ type *semantic::get_type_from_specifier(cnp now) {
         }
         auto newType = type_table.new_type("enum", name);
         if (newType->defined == true && !emulist.empty()) {
+            cout << "Around: " << now->content() << endl;
             throw duplicate_type();
         } else {
             newType->defined = true;
@@ -315,6 +327,7 @@ type *semantic::get_type_from_specifier(cnp now) {
                     continue;
                 newType->fields.emplace_back(type_table.get("unsigned"), e->token);
                 if (var_table.new_var(type_table.get("unsigned"), e->token, scope_level) == nullptr) {
+                    cout << "Around: " << now->content() << endl;
                     throw duplicate_definition();
                 }
             }
@@ -360,6 +373,7 @@ rtype semantic::get_rtype_of_declarator(type *ft, set<string> quas, cnp declarat
                         if (direct_dec->sons[2]->type == "integer-constant") {
                             re.array_size.push_back(atoi(direct_dec->sons[2]->token.data()));
                         } else {
+                            cout << "Around: " << declarator->content() << endl;
                             throw illegal_index();
                         }
                     }
@@ -429,11 +443,14 @@ pair<type *, set<string> > semantic::get_type_qualifiers(cnp declaration_specifi
         } else if (type_specifiers.count(sq->type)) {
             if (specifiers == nullptr)
                 specifiers = get_type_from_specifier(sq);
-            else
+            else {
+                cout << "Around: " << declaration_specifiers->content() << endl;
                 throw spec_cnt_error();
+            }
         }
     }
     if (specifiers == nullptr) {
+        cout << "Around: " << declaration_specifiers->content() << endl;
         throw spec_cnt_error();
     }
     return {specifiers, qualifiers};
@@ -482,6 +499,7 @@ rtype semantic::get_rtype_of_expression(cnp now) {
         if (now->sonnames[1] == ".") {
             auto r = get_rtype_of_expression(now->sons[0]);
             if (r.pointer != 0 || r.array_size.empty() == false) {
+                cout << "Around: " << now->content() << endl;
                 throw pointer_expected();
             } else {
                 return r.f->get_sub(now->sons[2]->token);
@@ -489,6 +507,7 @@ rtype semantic::get_rtype_of_expression(cnp now) {
         } else if (now->sonnames[1] == "->") {
             auto r = get_rtype_of_expression(now->sons[0]);
             if (r.pointer == 0 && r.array_size.empty() == false) {
+                cout << "Around: " << now->content() << endl;
                 throw pointer_not_expected();
             } else {
                 return r.f->get_sub(now->sons[2]->token);
@@ -511,7 +530,7 @@ rtype semantic::get_rtype_of_expression(cnp now) {
                 arglist = now->sons[2]->sons;
 
             if (arglist.size() != f->parameters.size()) {
-
+                cout << "Around: " << now->content() << endl;
                 throw func_args_not_match();
             }
             for (int i = 0; i < arglist.size(); i++) {
@@ -520,11 +539,13 @@ rtype semantic::get_rtype_of_expression(cnp now) {
                     continue;
                 auto rt = get_rtype_of_expression(a);
                 if (rt.congruent(f->parameters[i].first) == false) {
+                    cout << "Around: " << now->content() << endl;
                     throw func_args_not_match();
                 }
             }
         } else {
             if (f->parameters.empty() == false) {
+                cout << "Around: " << now->content() << endl;
                 throw func_args_not_match();
             }
         }
@@ -565,6 +586,7 @@ rtype semantic::get_rtype_of_expression(cnp now) {
         auto l = get_rtype_of_expression(now->sons[0]);
         auto r = get_rtype_of_expression(now->sons[2]);
         if (l.congruent(r) == false) {
+            cout << "Around: " << now->content() << endl;
             throw opnd_not_match();
         } else {
             return l;
@@ -579,6 +601,7 @@ rtype semantic::get_rtype_of_expression(cnp now) {
         auto l = get_rtype_of_expression(now->sons[2]);
         auto r = get_rtype_of_expression(now->sons[4]);
         if (l.congruent(r) == false) {
+            cout << "Around: " << now->content() << endl;
             throw opnd_not_match();
         } else {
             return l;

@@ -123,7 +123,7 @@ class functions {
 public:
     map<string, func *> m;
 
-    func *get(string x);
+    func *get(string name);
 
     fp new_func(rtype r, const string &name);
 

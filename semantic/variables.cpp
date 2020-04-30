@@ -44,6 +44,7 @@ rtype type::get_sub(string name) {
             return p.first;
         }
     }
+    cout<<"Around: "<<name<<endl;
     throw var_not_defined();
 }
 
@@ -144,6 +145,7 @@ string variable::debug() {
 
 variable *variables::get(string x) {
     if (m.count(x) == 0 || m[x].empty()) {
+        cout<<"Around: "<<x<<endl;
         throw var_not_defined();
     }
     return m[x].back();
@@ -153,6 +155,7 @@ vp variables::new_var(rtype r, const string &name, int scopeLevel) {
     if (m.count(name)) {
         if (!m[name].empty() && m[name].back()->scope_level == scopeLevel) {
             cout << r.debug() << " " << name << endl;
+            cout<<"Around: "<<name<<endl;
             throw duplicate_definition();
         }
     }
@@ -174,11 +177,12 @@ string variables::debug() {
     return re;
 }
 
-fp functions::get(string x) {
-    if (m.count(x) == 0) {
+fp functions::get(string name) {
+    if (m.count(name) == 0) {
+        cout << "Around: " << name << endl;
         throw func_not_defined();
     }
-    return m[x];
+    return m[name];
 }
 
 fp functions::new_func(rtype r, const string &name) {
@@ -223,6 +227,7 @@ string func::debug() {
 
 void func::new_label(string name) {
     if (labels.count(name)) {
+        cout<<"Around: "<<name<<endl;
         throw duplicate_label();
     }
     labels.insert(name);

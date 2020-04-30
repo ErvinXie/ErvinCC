@@ -89,12 +89,6 @@ class array_access_out_of_bound : public exception {
     }
 };
 
-class goto_target_not_exist : public exception {
-    const char *what() const noexcept override {
-        return "Goto target not exist";
-    }
-};
-
 class func_not_returned : public exception {
     const char *what() const noexcept override {
         return "Function not returned";

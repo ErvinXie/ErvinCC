@@ -43,6 +43,8 @@ public:
 
     string to_string(bool recursive = false);
 
+    string content();
+
     vector<cnp> all_vt();
 
 };
