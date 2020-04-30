@@ -8,19 +8,22 @@
 #include <utility>
 
 
-int main() {
-    cnp x = new cst_node("test");
-    auto p = from_string("/Users/ervinxie/ClionProjects/ErvinCC/test-files/test-file1.json", true);
-//    ofstream out("/Users/ervinxie/ClionProjects/ErvinCC/test-files/test-file2.json");
-//    out << p->to_string(true);
+int main(int argc, char *argv[]) {
+    string json_dir;
+    for (int i = 0; i < argc; i++) {
+        json_dir = argv[i];
+    }
+    auto p = from_string(json_dir, true);
     semantic s;
     try {
         s.semantic_check(p);
-        s.debug();
-    } catch (exception &e) {
-        cout << e.what() << endl;
+//        s.debug();
     }
-
+    catch (exception &e) {
+        cout << e.what() << endl;
+        return 1;
+    }
+    cout << "Semantic OK" << endl;
     return 0;
 }
 
@@ -31,14 +34,14 @@ set<string> type_qualifiers({"const", "restrict", "volatile", "extern", "static"
 
 
 semantic::semantic() {
+    iteration_cnt = 0;
     token_cnt = 0;
     scope_level = 0;
 }
 
 
 void semantic::semantic_check(cnp now) {
-
-//    cout << now->type << endl;
+//    cout << now->type << " " << now->token << endl;
     if (now->type == "translation-unit") {
 
     } else if (now->type == "external-declaration") {
@@ -48,22 +51,55 @@ void semantic::semantic_check(cnp now) {
         auto p = get_type_qualifiers(now->sons[0]);
         auto specifier = p.first;
         auto qualifier = p.second;
-        auto rt = get_rtype(specifier, qualifier, now->sons[1]);
+        auto rt = get_rtype_of_declarator(specifier, qualifier, now->sons[1]);
         auto name = get_declarator_name(now->sons[1]);
+
         auto newFunc = func_table.new_func(rt, name);
+        nowfunc = newFunc;
         if (newFunc->defined) {
             throw duplicate_definition();
         } else if (newFunc->parameters.empty()) {
             push_parameters(now, newFunc);
         }
-
-        //todo: body
+        semantic_check(now->sons[2]);
+        if (nowfunc->returned == false) {
+            throw func_not_returned();
+        }
         level_down();
-        return;git
+        nowfunc = nullptr;
+        return;
+
     } else if (now->type == "declaration-list") {
 
     } else if (now->type == "declaration") {
+        auto p = get_type_qualifiers(now->sons[0]);
+        auto specifier = p.first;
+        auto qualifier = p.second;
+        auto idlist = vector({now->sons[1]});
+        if (now->sonnames[1] == ";") {
+            return;
+        }
+        if (now->sons[1]->type == "init-declarator-list")
+            idlist = now->sons[1]->sons;
+        for (auto id:idlist) {
+            if (id->type == ",")
+                continue;
+            auto declarator = id;
+            if (id->type == "init-declarator") {
+                declarator = id->sons[0];
+            }
+            auto rt = get_rtype_of_declarator(specifier, qualifier, declarator);
+            auto name = get_declarator_name(declarator);
+            auto new_var = var_table.new_var(rt, name, scope_level);
+            if (id->type == "init-declarator") {
+                auto r = get_rtype_of_expression(id->sons[2]);
+                if (r.congruent(new_var->r) == false) {
+                    throw initializer_not_match();
+                }
+            }
 
+        }
+        return;
     } else if (now->type == "declaration-specifiers") {
 
     } else if (now->type == "storage-class-specifier") {
@@ -126,81 +162,72 @@ void semantic::semantic_check(cnp now) {
     } else if (now->type == "statement") {
 
     } else if (now->type == "labeled-statement") {
-
+        nowfunc->new_label(now->sons[0]->token);
     } else if (now->type == "identifier") {
 
     } else if (now->type == "statement") {
 
     } else if (now->type == "compound-statement") {
+        level_up();
+        for (auto x:now->sons)
+            semantic_check(x);
+        level_down();
+        return;
 
     } else if (now->type == "block-item-list") {
 
     } else if (now->type == "block-item") {
 
     } else if (now->type == "expression-statement") {
-
+        if (now->sonnames[0] == "expression") {
+            get_rtype_of_expression(now->sons[0]);
+            return;
+        }
     } else if (now->type == "selection-statement") {
 
     } else if (now->type == "iteration-statement") {
-
+        iteration_cnt++;
+        for (auto x:now->sons)
+            semantic_check(x);
+        iteration_cnt--;
+        return;
+    } else if (now->type == "for-statement") {
+        level_up();
+        for (auto x:now->sons)
+            semantic_check(x);
+        level_down();
+        return;
     } else if (now->type == "jump-statement") {
-
-    } else if (now->type == "primary-expression") {
-
-    } else if (now->type == "constant") {
-
-    } else if (now->type == "postfix-expression") {
-
-    } else if (now->type == "array-access") {
-
-    } else if (now->type == "function-call") {
-
-    } else if (now->type == "argument-expression-list") {
-
-    } else if (now->type == "unary-expression") {
-
-    } else if (now->type == "unary-operator") {
-
-    } else if (now->type == "cast-expression") {
-
-    } else if (now->type == "multiplicative-expression") {
-
-    } else if (now->type == "additive-expression") {
-
-    } else if (now->type == "shift-expression") {
-
-    } else if (now->type == "relational-expression") {
-
-    } else if (now->type == "equality-expression") {
-
-    } else if (now->type == "AND-expression") {
-
-    } else if (now->type == "exclusive-OR-expression") {
-
-    } else if (now->type == "inclusive-OR-expression") {
-
-    } else if (now->type == "logical-AND-expression") {
-
-    } else if (now->type == "logical-OR-expression") {
-
-    } else if (now->type == "conditional-expression") {
-
-    } else if (now->type == "assignment-expression") {
-
-    } else if (now->type == "assignment-operator") {
-
-    } else if (now->type == "expression") {
-
-    } else if (now->type == "constant-expression") {
+        if (now->sonnames[0] == "goto") {
+            if (nowfunc->labels.count(now->sons[1]->token) == 0) {
+                throw label_not_exist();
+            }
+        } else if (now->sonnames[0] == "continue" || now->sonnames[0] == "break") {
+            if (iteration_cnt == 0) {
+                throw break_or_continue_not_in_loop();
+            }
+        } else if (now->sonnames[0] == "return") {
+            if (now->sonnames[1] == ";") {
+                if (nowfunc->r.f->name != "void") {
+                    throw return_type_not_match();
+                }
+            } else {
+                auto r = get_rtype_of_expression(now->sons[1]);
+                if (r.congruent(nowfunc->r)) {
+                    nowfunc->returned = true;
+                } else {
+                    throw return_type_not_match();
+                }
+            }
+        }
 
     }
     for (auto x:now->sons)
         semantic_check(x);
+
 }
 
-
 type *semantic::get_type_from_specifier(cnp now) {
-
     if (now->type == "type-specifier") {
         return get_type_from_specifier(now->sons[0]);
     } else if (type_specifiers.count(now->token)) {
@@ -235,21 +262,25 @@ type *semantic::get_type_from_specifier(cnp now) {
                 specifiers = p.first;
 
                 if (d->sonnames[1] == "struct-declarator-list") {
+                    auto sdlist = vector({d->sons[1]});
                     if (d->sons[1]->type == "struct-declarator-list") {
-                        for (auto struct_declarator:d->sons[1]->sons) {
-                            if (struct_declarator->type != ",") {
-                                auto r = get_rtype(specifiers, qualifiers, struct_declarator);
-                                auto name = get_declarator_name(struct_declarator);
-                                newType->fields.emplace_back(r, name);
+                        sdlist = d->sons[1]->sons;
+                    }
+                    for (auto struct_declarator:sdlist) {
+                        if (struct_declarator->type != ",") {
+                            auto r = get_rtype_of_declarator(specifiers, qualifiers, struct_declarator);
+                            auto name = get_declarator_name(struct_declarator);
+                            newType->fields.emplace_back(r, name);
+                            auto new_var = var_table.new_var(r, name, scope_level);
+                            if (new_var == nullptr) {
+                                throw duplicate_definition();
                             }
-                        }
-                    } else {
-                        auto r = get_rtype(specifiers, qualifiers, d->sons[1]);
-                        auto name = get_declarator_name(d->sons[1]);
-                        newType->fields.emplace_back(r, name);
-
-                        if (var_table.new_var(r, name, scope_level) == nullptr) {
-                            throw duplicate_definition();
+                            if (struct_declarator->type == "struct-declarator") {
+                                auto rt = get_rtype_of_expression(struct_declarator->sons[2]);
+                                if (new_var->r.congruent(rt) == false) {
+                                    throw initializer_not_match();
+                                }
+                            }
                         }
                     }
                 } else {
@@ -297,15 +328,15 @@ string semantic::get_qualifier(cnp now) {
     if (now->type == "type-qualifier") {
         return get_qualifier(now->sons[0]);
     } else {
-        if (set<string>({"const", "restrict", "volatile"}).count(now->token)) {
+        if (type_qualifiers.count(now->token)) {
             return now->token;
         }
     }
 }
 
-rtype semantic::get_rtype(type *ft, set<string> quas, cnp declarator) {
+rtype semantic::get_rtype_of_declarator(type *ft, set<string> quas, cnp declarator) {
     if (declarator->type == "struct-declarator")
-        return get_rtype(ft, std::move(quas), declarator->sons[0]);
+        return get_rtype_of_declarator(ft, std::move(quas), declarator->sons[0]);
     else {
         int pcnt = 0;
 
@@ -342,13 +373,14 @@ rtype semantic::get_rtype(type *ft, set<string> quas, cnp declarator) {
 }
 
 string semantic::get_declarator_name(cnp declarator) {
-
     if (declarator->type == "struct-declarator")
         return get_declarator_name(declarator->sons[0]);
     else if (declarator->type == "identifier") {
         return declarator->token;
     } else {
-        auto direct_dec = declarator->sons.back();
+        auto direct_dec = declarator;
+        if (declarator->type == "declarator")
+            direct_dec = declarator->sons.back();
         while (direct_dec->type == "direct-declarator") {
             direct_dec = direct_dec->sons[0];
         }
@@ -358,6 +390,8 @@ string semantic::get_declarator_name(cnp declarator) {
 
 void semantic::debug() {
     cout << type_table.debug() << endl;
+    cout << func_table.debug() << endl;
+    cout << var_table.debug() << endl;
 }
 
 void semantic::level_up() {
@@ -365,12 +399,21 @@ void semantic::level_up() {
 }
 
 void semantic::level_down() {
-    for (auto x:var_table.m) {
+//    cout << var_table.debug() << endl;
+    for (auto &x:var_table.m) {
         if (!x.second.empty() && x.second.back()->scope_level == scope_level) {
+//            cout << x.first << endl;
+
             x.second.pop_back();
+
+//            cout << x.first << endl;
         }
     }
+//    cout << var_table.debug() << endl;
+//    cout << "---" << endl;
     scope_level--;
+
+
 }
 
 pair<type *, set<string> > semantic::get_type_qualifiers(cnp declaration_specifiers) {
@@ -398,22 +441,151 @@ pair<type *, set<string> > semantic::get_type_qualifiers(cnp declaration_specifi
 
 void semantic::push_parameters(cnp func, fp f) {
     auto declarator = func->sons[1];
-    while (declarator->type == "direct-declarator") {
-        if (declarator->sons.size() >= 3 && declarator->sonnames[2] == "parameter-list") {
-            auto declist = vector({declarator->sons[2]});
-            if (declarator->sons[2]->type == "parameter-list")
-                declist = declarator->sons[2]->sons;
-            for (auto d:declist) {
-                auto p = get_type_qualifiers(d->sons[0]);
-                auto spec = p.first;
-                auto quali = p.second;
-                auto rt = get_rtype(spec, quali, d->sons[1]);
-                auto name = get_declarator_name(d->sons[1]);
-                var_table.new_var(rt, name, scope_level);
-                f->parameters.emplace_back(rt, name);
+    if (declarator->type == "declarator") {
+        declarator = declarator->sons.back();
+    }
+
+    if (declarator->sons.size() >= 3 && declarator->sonnames[2] == "parameter-list") {
+
+        auto declist = vector({declarator->sons[2]});
+        if (declarator->sons[2]->type == "parameter-list")
+            declist = declarator->sons[2]->sons;
+        for (auto d:declist) {
+            if (d->type == ",")
+                continue;
+            auto p = get_type_qualifiers(d->sons[0]);
+            auto spec = p.first;
+            auto quali = p.second;
+            auto rt = get_rtype_of_declarator(spec, quali, d->sons[1]);
+            auto name = get_declarator_name(d->sons[1]);
+            var_table.new_var(rt, name, scope_level);
+            f->parameters.emplace_back(rt, name);
+        }
+    }
+
+}
+
+rtype semantic::get_rtype_of_expression(cnp now) {
+    if (now->type == "primary-expression") {
+        return get_rtype_of_expression(now->sons[1]);
+    } else if (now->type == "identifier") {
+        return var_table.get(now->token)->r;
+    } else if (now->type == "string-literal") {
+        return rtype(type_table.get("char"), {}, 1);
+    } else if (now->type == "integer-constant") {
+        return rtype(type_table.get("int"));
+    } else if (now->type == "floating-constant") {
+        return rtype(type_table.get("double"));
+    } else if (now->type == "character-constant") {
+        return rtype(type_table.get("char"));
+    } else if (now->type == "postfix-expression") {
+        if (now->sonnames[1] == ".") {
+            auto r = get_rtype_of_expression(now->sons[0]);
+            if (r.pointer != 0 || r.array_size.empty() == false) {
+                throw pointer_expected();
+            } else {
+                return r.f->get_sub(now->sons[2]->token);
+            }
+        } else if (now->sonnames[1] == "->") {
+            auto r = get_rtype_of_expression(now->sons[0]);
+            if (r.pointer == 0 && r.array_size.empty() == false) {
+                throw pointer_not_expected();
+            } else {
+                return r.f->get_sub(now->sons[2]->token);
+            }
+        } else if (now->sonnames[1] == "++" || now->sonnames[1] == "--") {
+            return get_rtype_of_expression(now->sons[0]);
+        }
+    } else if (now->type == "array-access") {
+        auto r = get_rtype_of_expression(now->sons[0]);
+        r.array_size.pop_back();
+        return r;
+    } else if (now->type == "function-call") {
+
+        auto name = now->sons[0]->token;
+        auto f = func_table.get(name);
+
+        if (now->sonnames[2] == "argument-expression-list") {
+            auto arglist = vector<cnp>({now->sons[2]});
+            if (now->sons[2]->type == "argument-expression-list")
+                arglist = now->sons[2]->sons;
+
+            if (arglist.size() != f->parameters.size()) {
+
+                throw func_args_not_match();
+            }
+            for (int i = 0; i < arglist.size(); i++) {
+                auto a = arglist[i];
+                if (a->type == ",")
+                    continue;
+                auto rt = get_rtype_of_expression(a);
+                if (rt.congruent(f->parameters[i].first) == false) {
+                    throw func_args_not_match();
+                }
+            }
+        } else {
+            if (f->parameters.empty() == false) {
+                throw func_args_not_match();
             }
         }
-        declarator = declarator->sons[0];
+        return f->r;
+    } else if (now->type == "argument-expression-list") {
+
+    } else if (now->type == "unary-expression") {
+        if (now->sonnames[0] == "++" || now->sonnames[0] == "--") {
+            return get_rtype_of_expression(now->sons[1]);
+        } else if (now->sonnames[0] == "unary-operator") {
+            auto t = now->sons[0]->type;
+            auto r = get_rtype_of_expression(now->sons[1]);
+            if (t == "+" || t == "-" || t == "~") {
+                return r;
+            } else if (t == "*") {
+                return r.get_tar();
+            } else if (t == "&") {
+                return r.get_add();
+            } else if (t == "!") {
+                return rtype(type_table.get("int"));
+            }
+        } else if (now->sonnames[0] == "sizeof") {
+            return rtype(type_table.get("int"));
+        }
+    } else if (now->type == "unary-operator") {
+
+    } else if (now->type == "cast-expression") {
+        auto p = get_type_qualifiers(now->sons[1]);
+        return rtype(p.first);
+
+    } else if (now->type == "multiplicative-expression"
+               || now->type == "additive-expression"
+               || now->type == "shift-expression"
+               || now->type == "AND-expression"
+               || now->type == "exclusive-OR-expression"
+               || now->type == "inclusive-OR-expression"
+               || now->type == "assignment-expression") {
+        auto l = get_rtype_of_expression(now->sons[0]);
+        auto r = get_rtype_of_expression(now->sons[2]);
+        if (l.congruent(r) == false) {
+            throw opnd_not_match();
+        } else {
+            return l;
+        }
+
+    } else if (now->type == "relational-expression"
+               || now->type == "equality-expression"
+               || now->type == "logical-AND-expression"
+               || now->type == "logical-OR-expression") {
+        return rtype(type_table.get("int"));
+    } else if (now->type == "conditional-expression") {
+        auto l = get_rtype_of_expression(now->sons[2]);
+        auto r = get_rtype_of_expression(now->sons[4]);
+        if (l.congruent(r) == false) {
+            throw opnd_not_match();
+        } else {
+            return l;
+        }
+    } else if (now->type == "expression") {
+        get_rtype_of_expression(now->sons[2]);
+        return get_rtype_of_expression(now->sons[0]);
     }
 }
 

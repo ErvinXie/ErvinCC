@@ -7,7 +7,7 @@
 
 #include "../parser/parser/cst_node.h"
 #include "variables.h"
-#include "ast_node.h"
+
 #include "exceptions.h"
 #include <iostream>
 
@@ -26,19 +26,24 @@ public:
 
     string get_qualifier(cnp now);
 
-    pair<type*,set<string> >get_type_qualifiers(cnp declaration_specifiers);
+    pair<type *, set<string> > get_type_qualifiers(cnp declaration_specifiers);
 
     type *get_type_from_specifier(cnp now);
 
-    rtype get_rtype(type *ft, set<string> quas, cnp declarator);
+    rtype get_rtype_of_declarator(type *ft, set<string> quas, cnp declarator);
 
     string get_declarator_name(cnp declarator);
 
     void push_parameters(cnp func, fp f);
 
+    rtype get_rtype_of_expression(cnp now);
+
     void level_up();
+
     void level_down();
 
+    fp nowfunc = nullptr;
+    int iteration_cnt;
     int token_cnt;
     int scope_level;
 };

@@ -68,6 +68,7 @@ int cst_node::cst_node_cnt = 0;
 
 cst_node::cst_node(string type, string token) : type(type), token(token) { cnt = ++cst_node_cnt; }
 
+
 void cst_node::eliminate() {
     for (int i = 0; i < sons.size(); i++) {
         auto x = sons[i];

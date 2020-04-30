@@ -16,22 +16,52 @@ class var_not_defined : public exception {
     }
 };
 
+class func_not_defined : public exception {
+    const char *what() const noexcept override {
+        return "Functions not defined";
+    }
+};
+
 
 class duplicate_type : public exception {
     const char *what() const noexcept override {
-        return "duplicate type definition";
+        return "duplicate type definitions";
     }
 };
 
 class duplicate_definition : public exception {
     const char *what() const noexcept override {
-        return "duplicate definition";
+        return "duplicate definitions";
     }
 };
 
-class break_not_in_loop : public exception {
+class duplicate_label : public exception {
     const char *what() const noexcept override {
-        return "Break appears outside a loop or switch";
+        return "duplicate labels";
+    }
+};
+
+class label_not_exist : public exception {
+    const char *what() const noexcept override {
+        return "label does not exist";
+    }
+};
+
+class break_or_continue_not_in_loop : public exception {
+    const char *what() const noexcept override {
+        return "Break or Continue appears outside a loop or switch";
+    }
+};
+
+class pointer_expected : public exception {
+    const char *what() const noexcept override {
+        return "Pointer Expected";
+    }
+};
+
+class pointer_not_expected : public exception {
+    const char *what() const noexcept override {
+        return "No Pointer Expected";
     }
 };
 
@@ -44,6 +74,12 @@ class func_args_not_match : public exception {
 class opnd_not_match : public exception {
     const char *what() const noexcept override {
         return "Types of variables not match";
+    }
+};
+
+class initializer_not_match : public exception {
+    const char *what() const noexcept override {
+        return "Types of initializer variables not match";
     }
 };
 
@@ -62,6 +98,12 @@ class goto_target_not_exist : public exception {
 class func_not_returned : public exception {
     const char *what() const noexcept override {
         return "Function not returned";
+    }
+};
+
+class return_type_not_match : public exception {
+    const char *what() const noexcept override {
+        return "Return type not match function";
     }
 };
 

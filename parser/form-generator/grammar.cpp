@@ -1060,7 +1060,7 @@ int main() {
     freopen("../rule-files/slr1.txt", "w", stdout);
 //    freopen("../rule-files/ll1_form.txt", "w", stdout);
     x->read_rules();
-//    x->print_rules();
+    x->print_rules();
 
 //    LL(1)
 //    x = x->eliminate_left_recursion();
