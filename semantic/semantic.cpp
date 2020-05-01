@@ -13,6 +13,7 @@ int main(int argc, char *argv[]) {
     for (int i = 0; i < argc; i++) {
         json_dir = argv[i];
     }
+//    json_dir = "/Users/ervinxie/ClionProjects/ErvinCC/test-files/var-not-defined.json";
     cout << json_dir << endl;
     auto p = from_string(json_dir, true);
     semantic s;
@@ -42,7 +43,7 @@ semantic::semantic() {
 
 
 void semantic::semantic_check(cnp now) {
-    cout << now->type << " " << now->token << endl;
+//    cout << now->type << " " << now->token << endl;
     if (now->type == "translation-unit") {
 
     } else if (now->type == "external-declaration") {
@@ -68,6 +69,7 @@ void semantic::semantic_check(cnp now) {
             cout << "Around: " << now->content() << endl;
             throw func_not_returned();
         }
+        newFunc->defined = true;
         level_down();
         nowfunc = nullptr;
         return;
@@ -191,15 +193,13 @@ void semantic::semantic_check(cnp now) {
 
     } else if (now->type == "iteration-statement") {
         iteration_cnt++;
+        if (now->sonnames[0] == "for")
+            level_up();
         for (auto x:now->sons)
             semantic_check(x);
+        if (now->sonnames[0] == "for")
+            level_down();
         iteration_cnt--;
-        return;
-    } else if (now->type == "for-statement") {
-        level_up();
-        for (auto x:now->sons)
-            semantic_check(x);
-        level_down();
         return;
     } else if (now->type == "jump-statement") {
         if (now->sonnames[0] == "goto") {
@@ -258,11 +258,14 @@ type *semantic::get_type_from_specifier(cnp now) {
         }
 
         auto newType = type_table.new_type(struct_or_union, name);
+
         if (newType->defined == true && !declist.empty()) {
             cout << "Around: " << now->content() << endl;
             throw duplicate_type();
         } else {
-            newType->defined = true;
+            if (declist.empty() == false) {
+                newType->defined = true;
+            }
             for (auto d:declist) {
                 set<string> qualifiers;
                 type *specifiers = nullptr;
@@ -365,11 +368,15 @@ rtype semantic::get_rtype_of_declarator(type *ft, set<string> quas, cnp declarat
         rtype re(ft, quas, pcnt);
         if (!declarator->sons.empty()) {
             auto direct_dec = declarator->sons.back();
+            if(declarator->type=="direct-declarator")
+                direct_dec = declarator;
+
             while (direct_dec->type == "direct-declarator") {
                 if (direct_dec->sons.size() >= 3 && direct_dec->sons[1]->type == "[") {
                     if (direct_dec->sons[2]->type == "]") {
                         re.array_size.push_back(-1);
                     } else {
+
                         if (direct_dec->sons[2]->type == "integer-constant") {
                             re.array_size.push_back(atoi(direct_dec->sons[2]->token.data()));
                         } else {
