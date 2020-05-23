@@ -2,7 +2,7 @@
 // Created by 谢威宇 on 2020/4/29.
 //
 
-#include "variables.h"
+#include "table.h"
 #include <utility>
 #include <iostream>
 
@@ -44,8 +44,38 @@ rtype type::get_sub(string name) {
             return p.first;
         }
     }
-    cout<<"Around: "<<name<<endl;
+    cout << "Around: " << name << endl;
     throw var_not_defined();
+}
+
+string type::llvm_type() {
+    if (ttype == "basic") {
+        if (name == "void") {
+            return "void";
+        } else if (name == "char") {
+            return "i8";
+        } else if (name == "short") {
+            return "i16";
+        } else if (name == "int" || name == "long" || name == "signed" || name == "unsigned") {
+            return "i32";
+        } else if (name == "float") {
+            return "float";
+        } else if (name == "double") {
+            return "double";
+        }
+    } else {
+        return name;
+    }
+}
+
+string type::llvm_type_define() {
+    string re = "{";
+    for (auto p:fields) {
+        re += p.first.llvm_type() + ",";
+    }
+    re.pop_back();
+    re.push_back('}');
+    return re;
 }
 
 types::types() {
@@ -115,7 +145,7 @@ bool rtype::congruent(const rtype &b) {
     return ap == bp;
 }
 
-rtype rtype::get_add() {
+rtype rtype::get_tar() {
     rtype r = *this;
     if (r.pointer > 0)
         r.pointer--;
@@ -125,7 +155,7 @@ rtype rtype::get_add() {
     return r;
 }
 
-rtype rtype::get_tar() {
+rtype rtype::get_add() {
     rtype r = *this;
     r.pointer++;
     return r;
@@ -133,8 +163,24 @@ rtype rtype::get_tar() {
 
 rtype::rtype() {}
 
+string rtype::llvm_type() {
+    string re = f->llvm_type();
+    for (int i = 0; i < pointer; i++) {
+        re.push_back('*');
+    }
+    for (auto x:array_size) {
+        if (x == -1) {
+            re.push_back('*');
+        } else {
+            re = string("[ ") + to_string(x) + " x " + re + " ]";
+        }
+    }
+    return re;
+}
+
 
 variable::variable(rtype r, const string &name, int scopeLevel) : r(r), name(name), scope_level(scopeLevel) {}
+
 
 string variable::debug() {
     string re = r.debug();
@@ -143,9 +189,16 @@ string variable::debug() {
     return re;
 }
 
+string variable::level_name() {
+    if (name[0] <= '9' && name[0] >= '0')
+        return name;
+    else
+        return to_string(scope_level) + "_" + name;
+}
+
 variable *variables::get(string x) {
     if (m.count(x) == 0 || m[x].empty()) {
-        cout<<"Around: "<<x<<endl;
+        cout << "Around: " << x << endl;
         throw var_not_defined();
     }
     return m[x].back();
@@ -155,7 +208,7 @@ vp variables::new_var(rtype r, const string &name, int scopeLevel) {
     if (m.count(name)) {
         if (!m[name].empty() && m[name].back()->scope_level == scopeLevel) {
             cout << r.debug() << " " << name << endl;
-            cout<<"Around: "<<name<<endl;
+            cout << "Around: " << name << endl;
             throw duplicate_definition();
         }
     }
@@ -205,6 +258,7 @@ string functions::debug() {
 
 func::func(const rtype &r, const string &name) : r(r), name(name) {
     defined = false;
+    temp_varible = 0;
     returned = r.f->name == "void";
 }
 
@@ -212,7 +266,7 @@ string func::debug() {
     string re = r.debug();
     re += " " + name + "(";
     for (auto p:parameters) {
-        re += p.first.debug() + ":" + p.second + ",";
+        re += p.r.debug() + ":" + p.name + ",";
     }
     re += ")";
     if (!labels.empty()) {
@@ -227,7 +281,7 @@ string func::debug() {
 
 void func::new_label(string name) {
     if (labels.count(name)) {
-        cout<<"Around: "<<name<<endl;
+        cout << "Around: " << name << endl;
         throw duplicate_label();
     }
     labels.insert(name);

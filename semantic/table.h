@@ -2,8 +2,8 @@
 // Created by 谢威宇 on 2020/4/29.
 //
 
-#ifndef ERVINCC_VARIABLES_H
-#define ERVINCC_VARIABLES_H
+#ifndef ERVINCC_TABLE_H
+#define ERVINCC_TABLE_H
 
 
 #include <set>
@@ -29,10 +29,14 @@ public:
     rtype(type *t, set<string> qua = set<string>({}), int pcnt = 0);
 
     rtype get_add();
+
     rtype get_tar();
+
     string debug();
 
-    bool congruent(const rtype& b);
+    string llvm_type();
+
+    bool congruent(const rtype &b);
 };
 
 
@@ -50,6 +54,9 @@ public:
 
     string debug();
 
+    string llvm_type();
+
+    string llvm_type_define();
 };
 
 class types {
@@ -84,6 +91,7 @@ public:
     variable(rtype r, const string &name, int scopeLevel);
 
     string debug();
+    string level_name();
 
 };
 
@@ -98,7 +106,7 @@ public:
 
     string debug();
 
-    bool comparabel(rtype t1, rtype t2);
+    bool comparable(rtype t1, rtype t2);
 };
 
 class func {
@@ -107,10 +115,11 @@ public:
     string name;
     bool defined;
     bool returned;
+    int temp_varible;
 
     func(const rtype &r, const string &name);
 
-    vector<pair<rtype, string>> parameters;
+    vector<variable> parameters;
 
     set<string> labels;
 
@@ -131,4 +140,4 @@ public:
 };
 
 
-#endif //ERVINCC_VARIABLES_H
+#endif //ERVINCC_TABLE_H

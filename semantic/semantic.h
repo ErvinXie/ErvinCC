@@ -6,19 +6,22 @@
 #define ERVINCC_SEMANTIC_H
 
 #include "../parser/parser/cst_node.h"
-#include "variables.h"
+#include "table.h"
 
 #include "exceptions.h"
 #include <iostream>
+#include <fstream>
 
 class semantic {
 public:
-    semantic();
-
     types type_table;
     variables var_table;
     functions func_table;
     cnp head;
+
+    ofstream out;
+
+    semantic(string outdir);
 
     void semantic_check(cnp now);
 
@@ -36,14 +39,19 @@ public:
 
     void push_parameters(cnp func, fp f);
 
-    rtype get_rtype_of_expression(cnp now);
+    variable get_variable_of_expression(cnp now);
 
     void level_up();
 
     void level_down();
 
     fp nowfunc = nullptr;
+    int global_temp_variable;
+
+    int get_temp_idx();
+
     int iteration_cnt;
+    vector<string> iteration_start, iteration_end;
     int token_cnt;
     int scope_level;
 };

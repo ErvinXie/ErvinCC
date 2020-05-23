@@ -10,13 +10,22 @@
 
 int main(int argc, char *argv[]) {
     string json_dir;
+    string ir_dir;
     for (int i = 0; i < argc; i++) {
         json_dir = argv[i];
     }
 //    json_dir = "/Users/ervinxie/ClionProjects/ErvinCC/test-files/var-not-defined.json";
+    for (int i = (int) json_dir.length() - 1; i >= 0; i--) {
+        if (json_dir[i] == '.') {
+            ir_dir = json_dir.substr(0, i) + ".ll";
+            break;
+        }
+    }
+
+
     cout << json_dir << endl;
     auto p = from_string(json_dir, true);
-    semantic s;
+    semantic s(ir_dir);
     try {
         s.semantic_check(p);
 //        s.debug();
@@ -29,17 +38,18 @@ int main(int argc, char *argv[]) {
     return 0;
 }
 
+semantic::semantic(string outdir) {
+    out = ofstream(outdir);
+    iteration_cnt = 0;
+    token_cnt = 0;
+    scope_level = 0;
+    global_temp_variable = 0;
+}
+
 set<string> type_specifiers({"void", "char", "short", "int",
                              "long", "float", "double", "signed",
                              "unsigned", "struct-or-union-specifier", "enum-specifier"});
 set<string> type_qualifiers({"const", "restrict", "volatile", "extern", "static", "register"});
-
-
-semantic::semantic() {
-    iteration_cnt = 0;
-    token_cnt = 0;
-    scope_level = 0;
-}
 
 
 void semantic::semantic_check(cnp now) {
@@ -49,6 +59,7 @@ void semantic::semantic_check(cnp now) {
     } else if (now->type == "external-declaration") {
 
     } else if (now->type == "function-definition") {
+        out << endl << "; function-definition" << endl;
         level_up();
         auto p = get_type_qualifiers(now->sons[0]);
         auto specifier = p.first;
@@ -64,7 +75,25 @@ void semantic::semantic_check(cnp now) {
         } else if (newFunc->parameters.empty()) {
             push_parameters(now, newFunc);
         }
+        string parameter_list = "(";
+        for (int i = 0; i < nowfunc->parameters.size(); i++) {
+            parameter_list += nowfunc->parameters[i].r.llvm_type();
+            if (i == nowfunc->parameters.size() - 1)
+                parameter_list += ")";
+            else
+                parameter_list += ",";
+        }
+        if (parameter_list.size() == 1)
+            parameter_list.push_back(')');
+
+        out << "define " << rt.llvm_type() << " @" << name << parameter_list << "{" << endl;
+        for (int i = 0; i < nowfunc->parameters.size(); i++) {
+            auto par = nowfunc->parameters[i];
+            auto name = get_temp_idx();
+            out << "    %" << par.level_name() << " = %" << name << endl;
+        }
         semantic_check(now->sons[2]);
+        out << "}" << endl;
         if (nowfunc->returned == false) {
             cout << "Around: " << now->content() << endl;
             throw func_not_returned();
@@ -72,6 +101,7 @@ void semantic::semantic_check(cnp now) {
         newFunc->defined = true;
         level_down();
         nowfunc = nullptr;
+        out << "; function-definition-end" << endl << endl;
         return;
 
     } else if (now->type == "declaration-list") {
@@ -95,12 +125,40 @@ void semantic::semantic_check(cnp now) {
             }
             auto rt = get_rtype_of_declarator(specifier, qualifier, declarator);
             auto name = get_declarator_name(declarator);
-            auto new_var = var_table.new_var(rt, name, scope_level);
-            if (id->type == "init-declarator") {
-                auto r = get_rtype_of_expression(id->sons[2]);
-                if (r.congruent(new_var->r) == false) {
-                    cout << "Around: " << id->content() << endl;
-                    throw initializer_not_match();
+
+            auto direct_declarator = declarator;
+            if (direct_declarator->type == "declarator")
+                direct_declarator = declarator->sons[1];
+            if (direct_declarator->sons.size() >= 3 && direct_declarator->sonnames[1] == "(") {
+                auto newFunc = func_table.new_func(rt, name);
+                push_parameters(now, newFunc);
+                out << "declare " << rt.llvm_type() << " @" << name << "(";
+                for (int i = 0; i < newFunc->parameters.size(); i++) {
+                    out << newFunc->parameters[i].r.llvm_type();
+                    if (i == newFunc->parameters.size() - 1)
+                        out << ")" << endl;
+                    else
+                        out << ",";
+                }
+                if (newFunc->parameters.empty())
+                    out << ")" << endl;
+
+            } else {
+                auto new_var = var_table.new_var(rt, name, scope_level);
+                if (nowfunc == nullptr)
+                    out << "@";
+                else
+                    out << "    %";
+                out << new_var->level_name() << " = " << "alloca " << rt.llvm_type() << endl;
+
+                if (id->type == "init-declarator") {
+                    auto v = get_variable_of_expression(id->sons[2]);
+                    if (v.r.congruent(new_var->r) == false) {
+                        cout << "Around: " << id->content() << endl;
+                        throw initializer_not_match();
+                    } else {
+                        out << "    %" << new_var->level_name() << " = %" << v.level_name() << endl;
+                    }
                 }
             }
 
@@ -168,7 +226,9 @@ void semantic::semantic_check(cnp now) {
     } else if (now->type == "statement") {
 
     } else if (now->type == "labeled-statement") {
-        nowfunc->new_label(now->sons[0]->token);
+        auto name = now->sons[0]->token;
+        nowfunc->new_label(name);
+        out << "    <label>:" << name << ":" << endl;
     } else if (now->type == "identifier") {
 
     } else if (now->type == "statement") {
@@ -186,20 +246,106 @@ void semantic::semantic_check(cnp now) {
 
     } else if (now->type == "expression-statement") {
         if (now->sonnames[0] == "expression") {
-            get_rtype_of_expression(now->sons[0]);
+            auto v = get_variable_of_expression(now->sons[0]);
             return;
         }
     } else if (now->type == "selection-statement") {
-
+        out << endl << "; if-statement" << endl;
+        auto condition = get_variable_of_expression(now->sons[2]);
+        if (now->sons.size() <= 5) {
+            auto if_start = to_string(get_temp_idx());
+            auto if_end = to_string(get_temp_idx());
+            out << "    br i1 %" << condition.level_name() << ", label %" << if_start
+                << ", lable %" << if_end << endl;
+            out << "    <label>:" << if_start << ":" << endl;
+            semantic_check(now->sons[4]);
+            out << "    <label>:" << if_end << ":" << endl;
+        } else {
+            auto if_start = to_string(get_temp_idx());
+            auto else_start = to_string(get_temp_idx());
+            auto if_end = to_string(get_temp_idx());
+            out << "    br " << condition.r.llvm_type() << " %" << condition.level_name() << ", label %" << if_start
+                << ", lable %" << else_start << endl;
+            out << "    <label>:" << if_start << ":" << endl;
+            semantic_check(now->sons[4]);
+            out << "    br label %" << if_end << endl;
+            out << "    <label>:" << else_start << ":" << endl;
+            semantic_check(now->sons[6]);
+            out << "    <label>:" << if_end << ":" << endl;
+        }
+        out << "; if-statement-end" << endl << endl;
+        return;
     } else if (now->type == "iteration-statement") {
+        out << endl << "; iteration-statement" << endl;
         iteration_cnt++;
-        if (now->sonnames[0] == "for")
+        if (now->sonnames[0] == "for") {
             level_up();
-        for (auto x:now->sons)
-            semantic_check(x);
-        if (now->sonnames[0] == "for")
+            auto for_initial = now->sons[1]->sons[1];
+            auto for_restriction = now->sons[1]->sons[2];
+            auto for_increase = now->sons[1]->sons[3];
+            semantic_check(for_initial);
+            auto for_check = to_string(get_temp_idx());
+            auto for_start = to_string(get_temp_idx());
+            auto for_end = to_string(get_temp_idx());
+            iteration_start.push_back(for_check);
+            iteration_end.push_back(for_end);
+            out << "    <label>:" << for_check << ":" << endl;
+            if (for_restriction->type != ";") {
+                for_restriction = for_restriction->sons[0];
+                auto condition = get_variable_of_expression(for_restriction);
+                out << "    br " << condition.r.llvm_type() << " %" << condition.level_name()
+                    << ", label %" << for_start
+                    << ", lable %" << for_end << endl;
+            }
+            out << "    <label>:" << for_start << ":" << endl;
+            semantic_check(now->sons[2]);
+            semantic_check(for_increase);
+            out << "    br label %" << for_check << endl;
+            out << "    <label>:" << for_end << ":" << endl;
+            iteration_end.pop_back();
+            iteration_start.pop_back();
             level_down();
+        } else if (now->sonnames[0] == "while") {
+            auto while_restriction = now->sons[2];
+
+            auto while_check = to_string(get_temp_idx());
+            auto while_start = to_string(get_temp_idx());
+            auto while_end = to_string(get_temp_idx());
+            iteration_start.push_back(while_check);
+            iteration_end.push_back(while_end);
+            out << "    <label>:" << while_check << ":" << endl;
+            auto condition = get_variable_of_expression(while_restriction);
+            out << "    br " << condition.r.llvm_type() << " %" << condition.level_name()
+                << ", label %" << while_start
+                << ", lable %" << while_end << endl;
+
+            out << "    <label>:" << while_start << ":" << endl;
+            semantic_check(now->sons[4]);
+            out << "    br label %" << while_check << endl;
+            out << "    <label>:" << while_end << ":" << endl;
+            iteration_end.pop_back();
+            iteration_start.pop_back();
+
+        } else if (now->sonnames[0] == "do") {
+            auto while_restriction = now->sons[4];
+            auto while_start = to_string(get_temp_idx());
+            auto while_end = to_string(get_temp_idx());
+            iteration_start.push_back(while_start);
+            iteration_end.push_back(while_end);
+            out << "    <label>:" << while_start << ":" << endl;
+            semantic_check(now->sons[1]);
+
+            auto condition = get_variable_of_expression(while_restriction);
+            out << "    br " << condition.r.llvm_type() << " %" << condition.level_name()
+                << ", label %" << while_start
+                << ", lable %" << while_end << endl;
+
+            out << "    <label>:" << while_end << ":" << endl;
+            iteration_end.pop_back();
+            iteration_start.pop_back();
+        }
         iteration_cnt--;
+        out << "; iteration-statement-end" << endl << endl;
         return;
     } else if (now->type == "jump-statement") {
         if (now->sonnames[0] == "goto") {
@@ -207,10 +353,17 @@ void semantic::semantic_check(cnp now) {
                 cout << "Around: " << now->content() << endl;
                 throw label_not_exist();
             }
+            auto label_name = now->sons[1]->token;
+            out << "    br label " << label_name << endl;
         } else if (now->sonnames[0] == "continue" || now->sonnames[0] == "break") {
             if (iteration_cnt == 0) {
                 cout << "Around: " << now->content() << endl;
                 throw break_or_continue_not_in_loop();
+            }
+            if (now->sonnames[0] == "continue") {
+                out << "    br label %" << iteration_start.back() << endl;
+            } else if (now->sonnames[0] == "break") {
+                out << "    br label %" << iteration_end.back() << endl;
             }
         } else if (now->sonnames[0] == "return") {
             if (now->sonnames[1] == ";") {
@@ -218,15 +371,18 @@ void semantic::semantic_check(cnp now) {
                     cout << "Around: " << now->content() << endl;
                     throw return_type_not_match();
                 }
+                out << "    ret void" << endl;
             } else {
-                auto r = get_rtype_of_expression(now->sons[1]);
-                if (r.congruent(nowfunc->r)) {
+                auto r = get_variable_of_expression(now->sons[1]);
+                if (r.r.congruent(nowfunc->r)) {
                     nowfunc->returned = true;
                 } else {
                     cout << "Around: " << now->content() << endl;
                     throw return_type_not_match();
                 }
+                out << "    ret " << r.r.llvm_type() << " %" << r.level_name() << endl;
             }
+
         }
 
     }
@@ -289,7 +445,7 @@ type *semantic::get_type_from_specifier(cnp now) {
                                 throw duplicate_definition();
                             }
                             if (struct_declarator->type == "struct-declarator") {
-                                auto rt = get_rtype_of_expression(struct_declarator->sons[2]);
+                                auto rt = get_variable_of_expression(struct_declarator->sons[2]).r;
                                 if (new_var->r.congruent(rt) == false) {
                                     cout << "Around: " << struct_declarator->content() << endl;
                                     throw initializer_not_match();
@@ -302,6 +458,9 @@ type *semantic::get_type_from_specifier(cnp now) {
                 }
             }
         }
+
+        out << "@" << newType->name << " = " << "type " << newType->llvm_type_define() << endl;
+
         level_down();
         return newType;
     } else if (now->type == "enum-specifier") {
@@ -368,7 +527,7 @@ rtype semantic::get_rtype_of_declarator(type *ft, set<string> quas, cnp declarat
         rtype re(ft, quas, pcnt);
         if (!declarator->sons.empty()) {
             auto direct_dec = declarator->sons.back();
-            if(declarator->type=="direct-declarator")
+            if (declarator->type == "direct-declarator")
                 direct_dec = declarator;
 
             while (direct_dec->type == "direct-declarator") {
@@ -376,7 +535,6 @@ rtype semantic::get_rtype_of_declarator(type *ft, set<string> quas, cnp declarat
                     if (direct_dec->sons[2]->type == "]") {
                         re.array_size.push_back(-1);
                     } else {
-
                         if (direct_dec->sons[2]->type == "integer-constant") {
                             re.array_size.push_back(atoi(direct_dec->sons[2]->token.data()));
                         } else {
@@ -482,106 +640,202 @@ void semantic::push_parameters(cnp func, fp f) {
             auto quali = p.second;
             auto rt = get_rtype_of_declarator(spec, quali, d->sons[1]);
             auto name = get_declarator_name(d->sons[1]);
-            var_table.new_var(rt, name, scope_level);
-            f->parameters.emplace_back(rt, name);
+            auto nv = var_table.new_var(rt, name, scope_level);
+            f->parameters.push_back(*nv);
         }
     }
 
 }
 
-rtype semantic::get_rtype_of_expression(cnp now) {
+variable semantic::get_variable_of_expression(cnp now) {
     if (now->type == "primary-expression") {
-        return get_rtype_of_expression(now->sons[1]);
+        return get_variable_of_expression(now->sons[1]);
     } else if (now->type == "identifier") {
-        return var_table.get(now->token)->r;
+        return *var_table.get(now->token);
     } else if (now->type == "string-literal") {
-        return rtype(type_table.get("char"), {}, 1);
+        auto name = to_string(get_temp_idx());
+        out << "    %" << name << " = constant ";
+        rtype str_type(type_table.get("char"), {}, 0);
+        str_type.array_size.push_back(now->token.length() + 1);
+        out << str_type.llvm_type() << " "
+            << "c\"" << now->token.substr(1, now->token.length() - 2)
+            << "\\0" << "\"" << endl;
+        return *var_table.new_var(str_type, name, scope_level);
     } else if (now->type == "integer-constant") {
-        return rtype(type_table.get("int"));
+        auto name = to_string(get_temp_idx());
+        out << "    %" << name << " = " << now->token << endl;
+        return *var_table.new_var(rtype(type_table.get("int"), {}, 0),
+                                  name,
+                                  scope_level);
     } else if (now->type == "floating-constant") {
-        return rtype(type_table.get("double"));
+        auto name = to_string(get_temp_idx());
+        out << "    %" << name << " = " << now->token << endl;
+        return *var_table.new_var(rtype(type_table.get("double"), {}, 0),
+                                  name,
+                                  scope_level);
     } else if (now->type == "character-constant") {
-        return rtype(type_table.get("char"));
+        auto name = to_string(get_temp_idx());
+        out << "    %" << name << " = " << (int) now->token[0] << endl;
+        return *var_table.new_var(rtype(type_table.get("char"), {}, 0),
+                                  name,
+                                  scope_level);
     } else if (now->type == "postfix-expression") {
         if (now->sonnames[1] == ".") {
-            auto r = get_rtype_of_expression(now->sons[0]);
+            auto father_v = get_variable_of_expression(now->sons[0]);
+            auto r = father_v.r;
             if (r.pointer != 0 || r.array_size.empty() == false) {
                 cout << "Around: " << now->content() << endl;
                 throw pointer_expected();
             } else {
-                return r.f->get_sub(now->sons[2]->token);
+                auto name = father_v.level_name() + "." + now->sons[2]->token;
+                return *var_table.new_var(r.f->get_sub(now->sons[2]->token),
+                                          name,
+                                          scope_level);
             }
         } else if (now->sonnames[1] == "->") {
-            auto r = get_rtype_of_expression(now->sons[0]);
+            auto father_v = get_variable_of_expression(now->sons[0]);
+            auto r = father_v.r;
             if (r.pointer == 0 && r.array_size.empty() == false) {
                 cout << "Around: " << now->content() << endl;
-                throw pointer_not_expected();
+                throw pointer_expected();
             } else {
-                return r.f->get_sub(now->sons[2]->token);
+                auto name = father_v.level_name() + "->" + now->sons[2]->token;
+                return *var_table.new_var(r.f->get_sub(now->sons[2]->token),
+                                          name,
+                                          scope_level);
             }
+
         } else if (now->sonnames[1] == "++" || now->sonnames[1] == "--") {
-            return get_rtype_of_expression(now->sons[0]);
+            auto v = get_variable_of_expression(now->sons[0]);
+            out << "    %" << v.level_name() << " = ";
+            if (now->sonnames[1] == "++")
+                out << "add ";
+            else
+                out << "sub ";
+            out << v.r.llvm_type() << " %" << v.level_name() << ", i32 " << 1 << endl;
+            return v;
         }
     } else if (now->type == "array-access") {
-        auto r = get_rtype_of_expression(now->sons[0]);
+        auto v = get_variable_of_expression(now->sons[0]);
+        auto i = get_variable_of_expression(now->sons[2]);
+        auto r = v.r;
+        auto name = to_string(get_temp_idx());
         r.array_size.pop_back();
-        return r;
+        out << "    %" << name << " = load " << r.llvm_type() << ", " << v.r.llvm_type() << " getelementptr inbounds ";
+        out << "( " << r.llvm_type() << ", " << v.r.llvm_type() << " %" << v.level_name() << ", "
+            << i.r.llvm_type() << " %" << i.level_name() << ")" << endl;
+        return *var_table.new_var(r, name, 0);
     } else if (now->type == "function-call") {
 
         auto name = now->sons[0]->token;
         auto f = func_table.get(name);
+        auto temp_name = to_string(get_temp_idx());
 
+        string parameter_list = "(";
         if (now->sonnames[2] == "argument-expression-list") {
-            auto arglist = vector<cnp>({now->sons[2]});
+            auto arglistt = vector<cnp>({now->sons[2]});
             if (now->sons[2]->type == "argument-expression-list")
-                arglist = now->sons[2]->sons;
+                arglistt = now->sons[2]->sons;
+
+            decltype(arglistt) arglist;
+            for (auto a:arglistt)
+                if (a->type != ",")
+                    arglist.push_back(a);
 
             if (arglist.size() != f->parameters.size()) {
                 cout << "Around: " << now->content() << endl;
+                cout << "Size:" << arglist.size() << endl;
+                cout << f->debug() << endl;
+
                 throw func_args_not_match();
             }
             for (int i = 0; i < arglist.size(); i++) {
                 auto a = arglist[i];
                 if (a->type == ",")
                     continue;
-                auto rt = get_rtype_of_expression(a);
-                if (rt.congruent(f->parameters[i].first) == false) {
+                auto v = get_variable_of_expression(a);
+                if (v.r.congruent(f->parameters[i].r) == false) {
                     cout << "Around: " << now->content() << endl;
+                    cout << "Type" << endl;
                     throw func_args_not_match();
                 }
+                parameter_list += v.r.llvm_type() + " %" + v.level_name() + ",";
             }
+            parameter_list.back() = ')';
         } else {
             if (f->parameters.empty() == false) {
                 cout << "Around: " << now->content() << endl;
                 throw func_args_not_match();
             }
+            parameter_list.push_back(')');
         }
-        return f->r;
+        out << "    %" << temp_name << " = call " << f->r.llvm_type() << " @" << f->name;
+        out << parameter_list << endl;
+        return *var_table.new_var(f->r, temp_name, scope_level);
     } else if (now->type == "argument-expression-list") {
 
     } else if (now->type == "unary-expression") {
         if (now->sonnames[0] == "++" || now->sonnames[0] == "--") {
-            return get_rtype_of_expression(now->sons[1]);
+            auto v = get_variable_of_expression(now->sons[1]);
+            out << "    %" << v.level_name() << " = ";
+            if (now->sonnames[0] == "++")
+                out << "add ";
+            else
+                out << "sub ";
+            out << v.r.llvm_type() << " %" << v.level_name() << ", i32 " << 1 << endl;
+            return v;
         } else if (now->sonnames[0] == "unary-operator") {
-            auto t = now->sons[0]->type;
-            auto r = get_rtype_of_expression(now->sons[1]);
-            if (t == "+" || t == "-" || t == "~") {
-                return r;
-            } else if (t == "*") {
-                return r.get_tar();
-            } else if (t == "&") {
-                return r.get_add();
-            } else if (t == "!") {
-                return rtype(type_table.get("int"));
+            auto op = now->sons[0]->type;
+            auto v = get_variable_of_expression(now->sons[1]);
+            if (op == "+" || op == "-" || op == "~") {
+                auto name = to_string(get_temp_idx());
+                auto r = v.r;
+                out << "    %" << name << " = " << op << " " << r.llvm_type() << ", "
+                    << v.r.llvm_type() << " %" << v.level_name() << endl;
+                return *var_table.new_var(r, name, scope_level);
+            } else if (op == "*") {
+                auto name = to_string(get_temp_idx());
+                auto r = v.r.get_tar();
+                out << "    %" << name << " = load " << r.llvm_type() << ", "
+                    << v.r.llvm_type() << " %" << v.level_name() << endl;
+                return *var_table.new_var(r, name, scope_level);
+
+            } else if (op == "&") {
+                auto name = to_string(get_temp_idx());
+                auto r = v.r.get_add();
+                out << "    %" << name << " = get_addr " << r.llvm_type() << ", "
+                    << v.r.llvm_type() << " %" << v.level_name() << endl;
+                return *var_table.new_var(r, name, scope_level);
+            } else if (op == "!") {
+                auto name = to_string(get_temp_idx());
+                auto r = type_table.get("int");
+                out << "    %" << name << " = icmp eq " << v.r.llvm_type() << " %" << v.level_name() << ", 0" << endl;
+                return *var_table.new_var(r, name, scope_level);
             }
         } else if (now->sonnames[0] == "sizeof") {
-            return rtype(type_table.get("int"));
+            if (now->sonnames[1] == "(") {
+                auto name = to_string(get_temp_idx());
+                auto r = type_table.get("int");
+                out << "% " << name << " = sizeof some type " << endl;
+                return *var_table.new_var(r, name, scope_level);
+            } else {
+                auto v = get_variable_of_expression(now->sons[1]);
+                auto name = to_string(get_temp_idx());
+                auto r = type_table.get("int");
+                out << "% " << name << " = sizeof" << v.r.llvm_type() << " %" << v.level_name() << endl;
+                return *var_table.new_var(r, name, scope_level);
+            }
         }
     } else if (now->type == "unary-operator") {
 
     } else if (now->type == "cast-expression") {
+        auto v = get_variable_of_expression(now->sons[3]);
         auto p = get_type_qualifiers(now->sons[1]);
-        return rtype(p.first);
+        auto name = to_string(get_temp_idx());
+        auto r = rtype(p.first);
+        out << "% " << name << " = cast " << r.llvm_type() << ", "
+            << v.r.llvm_type() << " %" << v.level_name() << endl;
+        return *var_table.new_var(r, name, scope_level);
 
     } else if (now->type == "multiplicative-expression"
                || now->type == "additive-expression"
@@ -590,33 +844,72 @@ rtype semantic::get_rtype_of_expression(cnp now) {
                || now->type == "exclusive-OR-expression"
                || now->type == "inclusive-OR-expression"
                || now->type == "assignment-expression") {
-        auto l = get_rtype_of_expression(now->sons[0]);
-        auto r = get_rtype_of_expression(now->sons[2]);
-        if (l.congruent(r) == false) {
+        auto l = get_variable_of_expression(now->sons[0]);
+        auto r = get_variable_of_expression(now->sons[2]);
+        if (l.r.congruent(r.r) == false) {
             cout << "Around: " << now->content() << endl;
             throw opnd_not_match();
         } else {
-            return l;
+            auto name = to_string(get_temp_idx());
+            auto rt = l.r;
+            out << "    %" << name << " = " << now->sonnames[1] << " " << l.r.llvm_type() << ", "
+                << l.r.llvm_type() << " %" << l.level_name() << ", "
+                << r.r.llvm_type() << " %" << r.level_name() << endl;
+            return *var_table.new_var(rt, name, scope_level);
         }
 
     } else if (now->type == "relational-expression"
                || now->type == "equality-expression"
                || now->type == "logical-AND-expression"
                || now->type == "logical-OR-expression") {
-        return rtype(type_table.get("int"));
+        auto l = get_variable_of_expression(now->sons[0]);
+        auto r = get_variable_of_expression(now->sons[2]);
+
+        auto name = to_string(get_temp_idx());
+        auto rt = type_table.get("int");
+        out << "    %" << name << " = " << now->sonnames[1] << " " << rt->llvm_type() << ", "
+            << l.r.llvm_type() << " %" << l.level_name() << ", "
+            << r.r.llvm_type() << " %" << r.level_name() << endl;
+        return *var_table.new_var(rt, name, scope_level);
+
     } else if (now->type == "conditional-expression") {
-        auto l = get_rtype_of_expression(now->sons[2]);
-        auto r = get_rtype_of_expression(now->sons[4]);
-        if (l.congruent(r) == false) {
+        auto condition = get_variable_of_expression(now->sons[0]);
+        auto l = get_variable_of_expression(now->sons[2]);
+        auto r = get_variable_of_expression(now->sons[4]);
+        if (l.r.congruent(r.r) == false) {
             cout << "Around: " << now->content() << endl;
             throw opnd_not_match();
         } else {
-            return l;
+            auto left = to_string(get_temp_idx());
+            auto right = to_string(get_temp_idx());
+            auto end = to_string(get_temp_idx());
+            out << "    br " << condition.r.llvm_type() << " " << condition.level_name() << ", "
+                << " label %" << left << " , label %" << right << endl;
+
+            auto name = to_string(get_temp_idx());
+            auto rt = l.r;
+            out << "    <label>:" << left << ":" << endl;
+            out << "    %" << name << " = %" << l.level_name() << endl;
+            out << "    br label %" << end << endl;
+            out << "    <label>:" << right << ":" << endl;
+            out << "    %" << name << " = %" << r.level_name() << endl;
+            out << "    <label>:" << end << ":" << endl;
+            return *var_table.new_var(rt, name, scope_level);
         }
     } else if (now->type == "expression") {
-        get_rtype_of_expression(now->sons[2]);
-        return get_rtype_of_expression(now->sons[0]);
+        get_variable_of_expression(now->sons[2]);
+        return get_variable_of_expression(now->sons[0]);
     }
 }
+
+int semantic::get_temp_idx() {
+    if (nowfunc == nullptr) {
+        return global_temp_variable++;
+    } else {
+        return nowfunc->temp_varible++;
+    }
+}
+
+
 
 
