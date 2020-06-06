@@ -19,7 +19,7 @@ public:
     functions func_table;
     cnp head;
 
-    ofstream out;
+    ofstream irout;
 
     semantic(string outdir);
 

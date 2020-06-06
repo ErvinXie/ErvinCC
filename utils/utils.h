@@ -12,6 +12,9 @@
 using namespace std;
 
 vector<string> split_space(string s);
+vector<string> split(string s,string set);
+vector<string> split_q(string s,string set);
+
 
 string texlize(string s);
 

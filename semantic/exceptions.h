@@ -85,7 +85,7 @@ class initializer_not_match : public exception {
 
 class array_access_out_of_bound : public exception {
     const char *what() const noexcept override {
-        return "Array access out of bound";
+        return "Array access irout of bound";
     }
 };
 

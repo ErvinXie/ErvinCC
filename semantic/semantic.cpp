@@ -39,11 +39,20 @@ int main(int argc, char *argv[]) {
 }
 
 semantic::semantic(string outdir) {
-    out = ofstream(outdir);
+    irout = ofstream(outdir);
     iteration_cnt = 0;
     token_cnt = 0;
     scope_level = 0;
     global_temp_variable = 0;
+
+    auto fp = func_table.new_func(rtype(type_table.get("void")), "Mars_PrintStr");
+    fp->parameters.push_back(*var_table.new_var(rtype(type_table.get("char"), {}, 1), "", scope_level));
+
+    fp = func_table.new_func(rtype(type_table.get("void")), "Mars_PrintInt");
+    fp->parameters.push_back(*var_table.new_var(rtype(type_table.get("int")), "", scope_level));
+
+    fp = func_table.new_func(rtype(type_table.get("int")), "Mars_GetInt");
+
 }
 
 set<string> type_specifiers({"void", "char", "short", "int",
@@ -59,7 +68,7 @@ void semantic::semantic_check(cnp now) {
     } else if (now->type == "external-declaration") {
 
     } else if (now->type == "function-definition") {
-        out << endl << "; function-definition" << endl;
+        irout << endl << "; function-definition" << endl;
         level_up();
         auto p = get_type_qualifiers(now->sons[0]);
         auto specifier = p.first;
@@ -86,14 +95,15 @@ void semantic::semantic_check(cnp now) {
         if (parameter_list.size() == 1)
             parameter_list.push_back(')');
 
-        out << "define " << rt.llvm_type() << " @" << name << parameter_list << "{" << endl;
+        irout << "define " << rt.llvm_type() << " @" << name << parameter_list << "{" << endl;
         for (int i = 0; i < nowfunc->parameters.size(); i++) {
             auto par = nowfunc->parameters[i];
             auto name = get_temp_idx();
-            out << "    %" << par.level_name() << " = %" << name << endl;
+            irout << "    %" << par.level_name() << " = alloca " << par.r.llvm_type() << endl;
+            irout << "    %" << par.level_name() << " store %" << name << endl;
         }
         semantic_check(now->sons[2]);
-        out << "}" << endl;
+        irout << "}" << endl;
         if (nowfunc->returned == false) {
             cout << "Around: " << now->content() << endl;
             throw func_not_returned();
@@ -101,7 +111,7 @@ void semantic::semantic_check(cnp now) {
         newFunc->defined = true;
         level_down();
         nowfunc = nullptr;
-        out << "; function-definition-end" << endl << endl;
+        irout << "; function-definition-end" << endl << endl;
         return;
 
     } else if (now->type == "declaration-list") {
@@ -132,24 +142,24 @@ void semantic::semantic_check(cnp now) {
             if (direct_declarator->sons.size() >= 3 && direct_declarator->sonnames[1] == "(") {
                 auto newFunc = func_table.new_func(rt, name);
                 push_parameters(now, newFunc);
-                out << "declare " << rt.llvm_type() << " @" << name << "(";
+                irout << "declare " << rt.llvm_type() << " @" << name << "(";
                 for (int i = 0; i < newFunc->parameters.size(); i++) {
-                    out << newFunc->parameters[i].r.llvm_type();
+                    irout << newFunc->parameters[i].r.llvm_type();
                     if (i == newFunc->parameters.size() - 1)
-                        out << ")" << endl;
+                        irout << ")" << endl;
                     else
-                        out << ",";
+                        irout << ",";
                 }
                 if (newFunc->parameters.empty())
-                    out << ")" << endl;
+                    irout << ")" << endl;
 
             } else {
                 auto new_var = var_table.new_var(rt, name, scope_level);
                 if (nowfunc == nullptr)
-                    out << "@";
+                    irout << "@";
                 else
-                    out << "    %";
-                out << new_var->level_name() << " = " << "alloca " << rt.llvm_type() << endl;
+                    irout << "    %";
+                irout << new_var->level_name() << " = " << "alloca " << rt.llvm_type() << endl;
 
                 if (id->type == "init-declarator") {
                     auto v = get_variable_of_expression(id->sons[2]);
@@ -157,7 +167,7 @@ void semantic::semantic_check(cnp now) {
                         cout << "Around: " << id->content() << endl;
                         throw initializer_not_match();
                     } else {
-                        out << "    %" << new_var->level_name() << " = %" << v.level_name() << endl;
+                        irout << "    %" << new_var->level_name() << " store %" << v.level_name() << endl;
                     }
                 }
             }
@@ -228,7 +238,7 @@ void semantic::semantic_check(cnp now) {
     } else if (now->type == "labeled-statement") {
         auto name = now->sons[0]->token;
         nowfunc->new_label(name);
-        out << "    <label>:" << name << ":" << endl;
+        irout << "" << name << ":" << endl;
     } else if (now->type == "identifier") {
 
     } else if (now->type == "statement") {
@@ -250,58 +260,62 @@ void semantic::semantic_check(cnp now) {
             return;
         }
     } else if (now->type == "selection-statement") {
-        out << endl << "; if-statement" << endl;
+        irout << endl << "; if-statement" << endl;
         auto condition = get_variable_of_expression(now->sons[2]);
         if (now->sons.size() <= 5) {
             auto if_start = to_string(get_temp_idx());
             auto if_end = to_string(get_temp_idx());
-            out << "    br i1 %" << condition.level_name() << ", label %" << if_start
-                << ", lable %" << if_end << endl;
-            out << "    <label>:" << if_start << ":" << endl;
+            irout << "    br i1 %" << condition.level_name() << ", label %" << if_start
+                  << ", lable %" << if_end << endl;
+            irout << "" << if_start << ":" << endl;
             semantic_check(now->sons[4]);
-            out << "    <label>:" << if_end << ":" << endl;
+            irout << "" << if_end << ":" << endl;
         } else {
             auto if_start = to_string(get_temp_idx());
             auto else_start = to_string(get_temp_idx());
             auto if_end = to_string(get_temp_idx());
-            out << "    br " << condition.r.llvm_type() << " %" << condition.level_name() << ", label %" << if_start
-                << ", lable %" << else_start << endl;
-            out << "    <label>:" << if_start << ":" << endl;
+            irout << "    br " << condition.r.llvm_type() << " %" << condition.level_name() << ", label %" << if_start
+                  << ", lable %" << else_start << endl;
+            irout << "" << if_start << ":" << endl;
             semantic_check(now->sons[4]);
-            out << "    br label %" << if_end << endl;
-            out << "    <label>:" << else_start << ":" << endl;
+            irout << "    br label %" << if_end << endl;
+            irout << "" << else_start << ":" << endl;
             semantic_check(now->sons[6]);
-            out << "    <label>:" << if_end << ":" << endl;
+            irout << "" << if_end << ":" << endl;
         }
-        out << "; if-statement-end" << endl << endl;
+        irout << "; if-statement-end" << endl << endl;
         return;
     } else if (now->type == "iteration-statement") {
-        out << endl << "; iteration-statement" << endl;
+        irout << endl << "; iteration-statement" << endl;
         iteration_cnt++;
         if (now->sonnames[0] == "for") {
             level_up();
             auto for_initial = now->sons[1]->sons[1];
             auto for_restriction = now->sons[1]->sons[2];
             auto for_increase = now->sons[1]->sons[3];
+            irout << "; for-start" << endl;
+            irout << "; " << for_initial->type << endl;
             semantic_check(for_initial);
             auto for_check = to_string(get_temp_idx());
             auto for_start = to_string(get_temp_idx());
             auto for_end = to_string(get_temp_idx());
             iteration_start.push_back(for_check);
             iteration_end.push_back(for_end);
-            out << "    <label>:" << for_check << ":" << endl;
+            irout << "; for-condition" << endl;
+            irout << "" << for_check << ":" << endl;
             if (for_restriction->type != ";") {
                 for_restriction = for_restriction->sons[0];
                 auto condition = get_variable_of_expression(for_restriction);
-                out << "    br " << condition.r.llvm_type() << " %" << condition.level_name()
-                    << ", label %" << for_start
-                    << ", lable %" << for_end << endl;
+                irout << "    br " << condition.r.llvm_type() << " %" << condition.level_name()
+                      << ", label %" << for_start
+                      << ", lable %" << for_end << endl;
             }
-            out << "    <label>:" << for_start << ":" << endl;
+            irout << "" << for_start << ":" << endl;
             semantic_check(now->sons[2]);
-            semantic_check(for_increase);
-            out << "    br label %" << for_check << endl;
-            out << "    <label>:" << for_end << ":" << endl;
+            irout << "; for-increase" << endl;
+            get_variable_of_expression(for_increase);
+            irout << "    br label %" << for_check << endl;
+            irout << "" << for_end << ":" << endl;
             iteration_end.pop_back();
             iteration_start.pop_back();
             level_down();
@@ -313,16 +327,16 @@ void semantic::semantic_check(cnp now) {
             auto while_end = to_string(get_temp_idx());
             iteration_start.push_back(while_check);
             iteration_end.push_back(while_end);
-            out << "    <label>:" << while_check << ":" << endl;
+            irout << "" << while_check << ":" << endl;
             auto condition = get_variable_of_expression(while_restriction);
-            out << "    br " << condition.r.llvm_type() << " %" << condition.level_name()
-                << ", label %" << while_start
-                << ", lable %" << while_end << endl;
+            irout << "    br " << condition.r.llvm_type() << " %" << condition.level_name()
+                  << ", label %" << while_start
+                  << ", lable %" << while_end << endl;
 
-            out << "    <label>:" << while_start << ":" << endl;
+            irout << "" << while_start << ":" << endl;
             semantic_check(now->sons[4]);
-            out << "    br label %" << while_check << endl;
-            out << "    <label>:" << while_end << ":" << endl;
+            irout << "    br label %" << while_check << endl;
+            irout << "" << while_end << ":" << endl;
             iteration_end.pop_back();
             iteration_start.pop_back();
 
@@ -332,20 +346,20 @@ void semantic::semantic_check(cnp now) {
             auto while_end = to_string(get_temp_idx());
             iteration_start.push_back(while_start);
             iteration_end.push_back(while_end);
-            out << "    <label>:" << while_start << ":" << endl;
+            irout << "" << while_start << ":" << endl;
             semantic_check(now->sons[1]);
 
             auto condition = get_variable_of_expression(while_restriction);
-            out << "    br " << condition.r.llvm_type() << " %" << condition.level_name()
-                << ", label %" << while_start
-                << ", lable %" << while_end << endl;
+            irout << "    br " << condition.r.llvm_type() << " %" << condition.level_name()
+                  << ", label %" << while_start
+                  << ", lable %" << while_end << endl;
 
-            out << "    <label>:" << while_end << ":" << endl;
+            irout << "" << while_end << ":" << endl;
             iteration_end.pop_back();
             iteration_start.pop_back();
         }
         iteration_cnt--;
-        out << "; iteration-statement-end" << endl << endl;
+        irout << "; iteration-statement-end" << endl << endl;
         return;
     } else if (now->type == "jump-statement") {
         if (now->sonnames[0] == "goto") {
@@ -354,16 +368,16 @@ void semantic::semantic_check(cnp now) {
                 throw label_not_exist();
             }
             auto label_name = now->sons[1]->token;
-            out << "    br label " << label_name << endl;
+            irout << "    br label " << label_name << endl;
         } else if (now->sonnames[0] == "continue" || now->sonnames[0] == "break") {
             if (iteration_cnt == 0) {
                 cout << "Around: " << now->content() << endl;
                 throw break_or_continue_not_in_loop();
             }
             if (now->sonnames[0] == "continue") {
-                out << "    br label %" << iteration_start.back() << endl;
+                irout << "    br label %" << iteration_start.back() << endl;
             } else if (now->sonnames[0] == "break") {
-                out << "    br label %" << iteration_end.back() << endl;
+                irout << "    br label %" << iteration_end.back() << endl;
             }
         } else if (now->sonnames[0] == "return") {
             if (now->sonnames[1] == ";") {
@@ -371,7 +385,7 @@ void semantic::semantic_check(cnp now) {
                     cout << "Around: " << now->content() << endl;
                     throw return_type_not_match();
                 }
-                out << "    ret void" << endl;
+                irout << "    ret void" << endl;
             } else {
                 auto r = get_variable_of_expression(now->sons[1]);
                 if (r.r.congruent(nowfunc->r)) {
@@ -380,14 +394,21 @@ void semantic::semantic_check(cnp now) {
                     cout << "Around: " << now->content() << endl;
                     throw return_type_not_match();
                 }
-                out << "    ret " << r.r.llvm_type() << " %" << r.level_name() << endl;
+                irout << "    ret " << r.r.llvm_type() << " %" << r.level_name() << endl;
             }
-
         }
-
+        return;
     }
-    for (auto x:now->sons)
-        semantic_check(x);
+//    irout << "; " << now->type << endl;
+    for (int i = 0; i < now->sons.size(); i++) {
+        if (i < now->sonnames.size()) {
+            if (now->sonnames[i] == "expression") {
+                get_variable_of_expression(now->sons[i]);
+            }
+        } else {
+            semantic_check(now->sons[i]);
+        }
+    }
 
 }
 
@@ -459,7 +480,7 @@ type *semantic::get_type_from_specifier(cnp now) {
             }
         }
 
-        out << "@" << newType->name << " = " << "type " << newType->llvm_type_define() << endl;
+        irout << "@" << newType->name << " = " << "type " << newType->llvm_type_define() << endl;
 
         level_down();
         return newType;
@@ -654,28 +675,31 @@ variable semantic::get_variable_of_expression(cnp now) {
         return *var_table.get(now->token);
     } else if (now->type == "string-literal") {
         auto name = to_string(get_temp_idx());
-        out << "    %" << name << " = constant ";
+        irout << "    %" << name << " = alloca ";
         rtype str_type(type_table.get("char"), {}, 0);
         str_type.array_size.push_back(now->token.length() + 1);
-        out << str_type.llvm_type() << " "
-            << "c\"" << now->token.substr(1, now->token.length() - 2)
-            << "\\0" << "\"" << endl;
+        irout << str_type.llvm_type() << " "
+              << "\"" << now->token
+              << "\\0" << "\"" << endl;
         return *var_table.new_var(str_type, name, scope_level);
     } else if (now->type == "integer-constant") {
         auto name = to_string(get_temp_idx());
-        out << "    %" << name << " = " << now->token << endl;
+        irout << "    %" << name << " = alloca " << rtype(type_table.get("int")).llvm_type() << endl;
+        irout << "    %" << name << " store " << now->token << endl;
         return *var_table.new_var(rtype(type_table.get("int"), {}, 0),
                                   name,
                                   scope_level);
     } else if (now->type == "floating-constant") {
         auto name = to_string(get_temp_idx());
-        out << "    %" << name << " = " << now->token << endl;
+        irout << "    %" << name << " = alloca " << rtype(type_table.get("double")).llvm_type() << endl;
+        irout << "    %" << name << " store " << now->token << endl;
         return *var_table.new_var(rtype(type_table.get("double"), {}, 0),
                                   name,
                                   scope_level);
     } else if (now->type == "character-constant") {
         auto name = to_string(get_temp_idx());
-        out << "    %" << name << " = " << (int) now->token[0] << endl;
+        irout << "    %" << name << " = alloca " << rtype(type_table.get("char")).llvm_type() << endl;
+        irout << "    %" << name << " store " << (int) now->token[0] << endl;
         return *var_table.new_var(rtype(type_table.get("char"), {}, 0),
                                   name,
                                   scope_level);
@@ -707,23 +731,34 @@ variable semantic::get_variable_of_expression(cnp now) {
 
         } else if (now->sonnames[1] == "++" || now->sonnames[1] == "--") {
             auto v = get_variable_of_expression(now->sons[0]);
-            out << "    %" << v.level_name() << " = ";
+//            irout << "    %" << v.level_name() << " = alloca " << v.r.llvm_type() << endl;
+            irout << "    %" << v.level_name() << " store ";
             if (now->sonnames[1] == "++")
-                out << "add ";
+                irout << "+ ";
             else
-                out << "sub ";
-            out << v.r.llvm_type() << " %" << v.level_name() << ", i32 " << 1 << endl;
+                irout << "- ";
+            irout << v.r.llvm_type() << " " << v.r.llvm_type() << " %" << v.level_name() << ", i32 " << 1 << endl;
             return v;
         }
     } else if (now->type == "array-access") {
-        auto v = get_variable_of_expression(now->sons[0]);
-        auto i = get_variable_of_expression(now->sons[2]);
+        auto nex = now;
+        vector<variable> va;
+        while (nex->type == "array-access") {
+            auto i = get_variable_of_expression(nex->sons[2]);
+            va.push_back(i);
+            nex = nex->sons[0];
+        }
+        reverse(va.begin(), va.end());
+        auto v = get_variable_of_expression(nex);
         auto r = v.r;
+        for (int i = 0; i < va.size(); i++)
+            r = r.get_tar();
         auto name = to_string(get_temp_idx());
-        r.array_size.pop_back();
-        out << "    %" << name << " = load " << r.llvm_type() << ", " << v.r.llvm_type() << " getelementptr inbounds ";
-        out << "( " << r.llvm_type() << ", " << v.r.llvm_type() << " %" << v.level_name() << ", "
-            << i.r.llvm_type() << " %" << i.level_name() << ")" << endl;
+        irout << "    %" << name << " = alloca " << r.llvm_type() << endl;
+        irout << "    %" << name << " store %" << v.level_name();
+        for (auto i:va)
+            irout << "(%" << i.level_name() << ")";
+        irout << endl;
         return *var_table.new_var(r, name, 0);
     } else if (now->type == "function-call") {
 
@@ -759,30 +794,38 @@ variable semantic::get_variable_of_expression(cnp now) {
                     cout << "Type" << endl;
                     throw func_args_not_match();
                 }
-                parameter_list += v.r.llvm_type() + " %" + v.level_name() + ",";
+                parameter_list += " " + v.r.llvm_type() + " %" + v.level_name() + ",";
             }
-            parameter_list.back() = ')';
+            parameter_list.back() = ' ';
+            parameter_list.push_back(')');
         } else {
             if (f->parameters.empty() == false) {
                 cout << "Around: " << now->content() << endl;
                 throw func_args_not_match();
             }
+            parameter_list.push_back(' ');
             parameter_list.push_back(')');
         }
-        out << "    %" << temp_name << " = call " << f->r.llvm_type() << " @" << f->name;
-        out << parameter_list << endl;
+        if (f->r.llvm_type() == "void") {
+            irout << "    call " << f->r.llvm_type() << " @" << f->name;
+        } else {
+            irout << "    %" << temp_name << " = alloca " << f->r.llvm_type() << endl;
+            irout << "    %" << temp_name << " store call " << f->r.llvm_type() << " @" << f->name;
+        }
+        irout << parameter_list << endl;
         return *var_table.new_var(f->r, temp_name, scope_level);
     } else if (now->type == "argument-expression-list") {
 
     } else if (now->type == "unary-expression") {
         if (now->sonnames[0] == "++" || now->sonnames[0] == "--") {
             auto v = get_variable_of_expression(now->sons[1]);
-            out << "    %" << v.level_name() << " = ";
+//            irout << "    %" << v.level_name() << " = alloca " << v.r.llvm_type() << endl;
+            irout << "    %" << v.level_name() << " store ";
             if (now->sonnames[0] == "++")
-                out << "add ";
+                irout << "+ ";
             else
-                out << "sub ";
-            out << v.r.llvm_type() << " %" << v.level_name() << ", i32 " << 1 << endl;
+                irout << "- ";
+            irout << v.r.llvm_type() << " " << v.r.llvm_type() << " %" << v.level_name() << ", i32 " << 1 << endl;
             return v;
         } else if (now->sonnames[0] == "unary-operator") {
             auto op = now->sons[0]->type;
@@ -790,51 +833,58 @@ variable semantic::get_variable_of_expression(cnp now) {
             if (op == "+" || op == "-" || op == "~") {
                 auto name = to_string(get_temp_idx());
                 auto r = v.r;
-                out << "    %" << name << " = " << op << " " << r.llvm_type() << ", "
-                    << v.r.llvm_type() << " %" << v.level_name() << endl;
+                irout << "    %" << name << " = alloca " << r.llvm_type() << endl;
+                irout << "    %" << name << " store " << op << " " << r.llvm_type() << ", "
+                      << v.r.llvm_type() << " %" << v.level_name() << endl;
                 return *var_table.new_var(r, name, scope_level);
             } else if (op == "*") {
+                //de
                 auto name = to_string(get_temp_idx());
                 auto r = v.r.get_tar();
-                out << "    %" << name << " = load " << r.llvm_type() << ", "
-                    << v.r.llvm_type() << " %" << v.level_name() << endl;
+                irout << "    %" << name << " = load " << r.llvm_type() << ", "
+                      << v.r.llvm_type() << " %" << v.level_name() << endl;
                 return *var_table.new_var(r, name, scope_level);
 
             } else if (op == "&") {
+                //de
                 auto name = to_string(get_temp_idx());
                 auto r = v.r.get_add();
-                out << "    %" << name << " = get_addr " << r.llvm_type() << ", "
-                    << v.r.llvm_type() << " %" << v.level_name() << endl;
+                irout << "    %" << name << " = get_addr " << r.llvm_type() << ", "
+                      << v.r.llvm_type() << " %" << v.level_name() << endl;
                 return *var_table.new_var(r, name, scope_level);
             } else if (op == "!") {
                 auto name = to_string(get_temp_idx());
                 auto r = type_table.get("int");
-                out << "    %" << name << " = icmp eq " << v.r.llvm_type() << " %" << v.level_name() << ", 0" << endl;
+                irout << "    %" << name << " = alloca " << v.r.llvm_type() << endl;
+                irout << "    %" << name << " store ! " << v.r.llvm_type() << " %" << v.level_name() << ", 0"
+                      << endl;
                 return *var_table.new_var(r, name, scope_level);
             }
         } else if (now->sonnames[0] == "sizeof") {
+            //de
             if (now->sonnames[1] == "(") {
                 auto name = to_string(get_temp_idx());
                 auto r = type_table.get("int");
-                out << "% " << name << " = sizeof some type " << endl;
+                irout << "% " << name << " = sizeof some type " << endl;
                 return *var_table.new_var(r, name, scope_level);
             } else {
                 auto v = get_variable_of_expression(now->sons[1]);
                 auto name = to_string(get_temp_idx());
                 auto r = type_table.get("int");
-                out << "% " << name << " = sizeof" << v.r.llvm_type() << " %" << v.level_name() << endl;
+                irout << "% " << name << " = sizeof" << v.r.llvm_type() << " %" << v.level_name() << endl;
                 return *var_table.new_var(r, name, scope_level);
             }
         }
     } else if (now->type == "unary-operator") {
 
     } else if (now->type == "cast-expression") {
+        //de
         auto v = get_variable_of_expression(now->sons[3]);
         auto p = get_type_qualifiers(now->sons[1]);
         auto name = to_string(get_temp_idx());
         auto r = rtype(p.first);
-        out << "% " << name << " = cast " << r.llvm_type() << ", "
-            << v.r.llvm_type() << " %" << v.level_name() << endl;
+        irout << "% " << name << " = cast " << r.llvm_type() << ", "
+              << v.r.llvm_type() << " %" << v.level_name() << endl;
         return *var_table.new_var(r, name, scope_level);
 
     } else if (now->type == "multiplicative-expression"
@@ -852,9 +902,10 @@ variable semantic::get_variable_of_expression(cnp now) {
         } else {
             auto name = to_string(get_temp_idx());
             auto rt = l.r;
-            out << "    %" << name << " = " << now->sonnames[1] << " " << l.r.llvm_type() << ", "
-                << l.r.llvm_type() << " %" << l.level_name() << ", "
-                << r.r.llvm_type() << " %" << r.level_name() << endl;
+            irout << "    %" << name << " = alloca " << l.r.llvm_type() << endl;
+            irout << "    %" << name << " store " << now->sons[1]->type << " " << l.r.llvm_type() << ", "
+                  << l.r.llvm_type() << " %" << l.level_name() << ", "
+                  << r.r.llvm_type() << " %" << r.level_name() << endl;
             return *var_table.new_var(rt, name, scope_level);
         }
 
@@ -867,9 +918,10 @@ variable semantic::get_variable_of_expression(cnp now) {
 
         auto name = to_string(get_temp_idx());
         auto rt = type_table.get("int");
-        out << "    %" << name << " = " << now->sonnames[1] << " " << rt->llvm_type() << ", "
-            << l.r.llvm_type() << " %" << l.level_name() << ", "
-            << r.r.llvm_type() << " %" << r.level_name() << endl;
+        irout << "    %" << name << " = alloca " << rtype(type_table.get("int")).llvm_type() << endl;
+        irout << "    %" << name << " store " << now->sons[1]->type << " " << rt->llvm_type() << ", "
+              << l.r.llvm_type() << " %" << l.level_name() << ", "
+              << r.r.llvm_type() << " %" << r.level_name() << endl;
         return *var_table.new_var(rt, name, scope_level);
 
     } else if (now->type == "conditional-expression") {
@@ -883,17 +935,18 @@ variable semantic::get_variable_of_expression(cnp now) {
             auto left = to_string(get_temp_idx());
             auto right = to_string(get_temp_idx());
             auto end = to_string(get_temp_idx());
-            out << "    br " << condition.r.llvm_type() << " " << condition.level_name() << ", "
-                << " label %" << left << " , label %" << right << endl;
+            irout << "    br " << condition.r.llvm_type() << " " << condition.level_name() << ", "
+                  << " label %" << left << " , label %" << right << endl;
 
             auto name = to_string(get_temp_idx());
             auto rt = l.r;
-            out << "    <label>:" << left << ":" << endl;
-            out << "    %" << name << " = %" << l.level_name() << endl;
-            out << "    br label %" << end << endl;
-            out << "    <label>:" << right << ":" << endl;
-            out << "    %" << name << " = %" << r.level_name() << endl;
-            out << "    <label>:" << end << ":" << endl;
+            irout << "    %" << name << " = alloca " << l.r.llvm_type() << endl;
+            irout << "" << left << ":" << endl;
+            irout << "    %" << name << " store %" << l.level_name() << endl;
+            irout << "    br label %" << end << endl;
+            irout << "" << right << ":" << endl;
+            irout << "    %" << name << " store %" << r.level_name() << endl;
+            irout << "" << end << ":" << endl;
             return *var_table.new_var(rt, name, scope_level);
         }
     } else if (now->type == "expression") {

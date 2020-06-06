@@ -16,10 +16,18 @@ string cst_node::to_string(bool recursive) {
             re += R"("token":)" + token;
         else if (type == "string-literal" || type == "char-literal") {
             string label;
-            for (int i = 0; i < token.length(); i++) {
-                if (token[i] == '"' || token[i] == '\\')
-                    label.push_back('\\');
-                label.push_back(token[i]);
+            if (token[0] == '"') {
+                for (int i = 1; i < token.length() - 1; i++) {
+                    if (token[i] == '"' || token[i] == '\\')
+                        label.push_back('\\');
+                    label.push_back(token[i]);
+                }
+            } else {
+                for (int i = 0; i < token.length(); i++) {
+                    if (token[i] == '"' || token[i] == '\\')
+                        label.push_back('\\');
+                    label.push_back(token[i]);
+                }
             }
             re += R"("token":")" + label + R"(")";
         } else {
@@ -131,7 +139,7 @@ string cst_node::to_dot(string outdir) {
 
     string re = "graph tree\n"
                 "{\n"
-                "    ordering=out ;\n"
+                "    ordering=irout ;\n"
                 "    graph[dpi = 400];\n"
                 "    rankdir = UD;\n"
                 "\n"
@@ -263,6 +271,7 @@ cnp from_string(string str, bool file = false) {
                 }
                 if (s[i] == '\\') {
                     esc = true;
+                    continue;
                 }
                 if (s[i] == '"')
                     instr = !instr;

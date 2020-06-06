@@ -172,7 +172,7 @@ string rtype::llvm_type() {
         if (x == -1) {
             re.push_back('*');
         } else {
-            re = string("[ ") + to_string(x) + " x " + re + " ]";
+            re = string("[") + to_string(x) + "x" + re + "]";
         }
     }
     return re;
@@ -205,7 +205,7 @@ variable *variables::get(string x) {
 }
 
 vp variables::new_var(rtype r, const string &name, int scopeLevel) {
-    if (m.count(name)) {
+    if (name != "" && m.count(name)) {
         if (!m[name].empty() && m[name].back()->scope_level == scopeLevel) {
             cout << r.debug() << " " << name << endl;
             cout << "Around: " << name << endl;

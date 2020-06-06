@@ -3,6 +3,7 @@
 //
 
 #include "utils.h"
+#include <set>
 
 map<char, string> esc({
                               {'{',  "\\{"},
@@ -16,23 +17,63 @@ map<char, string> esc({
                       });
 
 vector<string> split_space(string s) {
+    return split(s, " \t");
+}
+
+vector<string> split(string s, string se) {
     vector<string> re;
-    string x;
+    set<char> x;
+    string t;
+    x.insert(se.begin(), se.end());
     for (auto c:s) {
-        if (c == ' ' || c == '\t') {
-            if (x.length()) {
-                re.push_back(x);
-                x = "";
+        if (x.count(c)) {
+            if (t.length()) {
+                re.push_back(t);
+                t = "";
             }
         } else {
-            x.push_back(c);
+            t.push_back(c);
         }
     }
-    if (x.size())
-        re.push_back(x);
+    if (t.size())
+        re.push_back(t);
     return re;
 }
 
+vector<string> split_q(string s, string se) {
+    vector<string> re;
+    set<char> x;
+    string t;
+    x.insert(se.begin(), se.end());
+    bool instr = false;
+    bool esc = false;
+    for (auto c:s) {
+        if (x.count(c) && !instr) {
+            if (t.length()) {
+                re.push_back(t);
+                t = "";
+            }
+        } else {
+            t.push_back(c);
+            if (instr) {
+                if (esc) {
+                    esc = false;
+                } else {
+                    if (c == '\\')
+                        esc = true;
+                    if (c == '"')
+                        instr = false;
+                }
+            } else {
+                if (c == '"')
+                    instr = true;
+            }
+        }
+    }
+    if (t.size())
+        re.push_back(t);
+    return re;
+}
 
 string texlize(string s) {
     string re;
@@ -51,3 +92,7 @@ string texlize(string s) {
     }
     return re;
 }
+
+
+
+
