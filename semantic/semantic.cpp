@@ -764,7 +764,7 @@ variable semantic::get_variable_of_expression(cnp now) {
 
         auto name = now->sons[0]->token;
         auto f = func_table.get(name);
-        auto temp_name = to_string(get_temp_idx());
+        auto temp_name = to_string(get_temp_idx())+"fr";
 
         string parameter_list = "(";
         if (now->sonnames[2] == "argument-expression-list") {

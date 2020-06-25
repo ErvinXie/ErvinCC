@@ -9,6 +9,7 @@
 #include <string>
 #include <vector>
 #include <iostream>
+#include <fstream>
 #include <set>
 #include <stack>
 #include "../../utils/utils.h"
@@ -108,9 +109,9 @@ public:
     nodep get_node(string s);
 
 
-    void read_rules();
+    void read_rules(istream &in);
 
-    void print_rules(bool tex = false);
+    void print_rules(ostream &out);
 
     vector<nodep> get_all_Vn();
 
@@ -133,19 +134,19 @@ public:
 
     map<nodep, set<nodep>> get_first();
 
-    void print_first();
+    void print_first(ostream &out);
 
     map<nodep, set<nodep>> follow;
 
     map<nodep, set<nodep>> get_follow();
 
-    void print_follow();
+    void print_follow(ostream &out);
 
     map<pair<nodep, nodep>, vector<vector<nodep>>> LL1form;
 
     map<pair<nodep, nodep>, vector<vector<nodep>>> get_LL1form();
 
-    void print_LL1form();
+    void print_LL1form(ostream &out);
 
     /*------LR(0)-------*/
 
@@ -159,13 +160,13 @@ public:
 
     void build_lr0_closures();
 
-    void print_lr0_closures(bool dot=false);
+    void print_lr0_closures(ostream &out, ostream &dout);
 
     map<pair<lr0_closurep, nodep>, vector<string>> SLR1form;
 
     map<pair<lr0_closurep, nodep>, vector<string>> get_SLR1form();
 
-    void print_SLR1form();
+    void print_SLR1form(ostream &out);
 
     /*------LR(1)-------*/
 
@@ -179,13 +180,13 @@ public:
 
     void build_lr1_closures();
 
-    void print_lr1_closures(bool dot=false);
+    void print_lr1_closures(ostream &out, ostream &dout);
 
     map<pair<lr1_closurep, nodep>, vector<string>> LR1form;
 
     map<pair<lr1_closurep, nodep>, vector<string>> get_LR1form();
 
-    void print_LR1form();
+    void print_LR1form(ostream &out);
 
 };
 

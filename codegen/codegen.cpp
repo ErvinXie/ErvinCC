@@ -212,7 +212,7 @@ void codegen::genfunc() {
                 {
                     body << push("$ra") << endl;
                     for (auto p:toass) {
-                        if (p.first.back() > '9' || p.first.back() < '0') {
+                        if (p.first.back()>'9'||p.first.back()<'0') {
                             auto pv = p.second->val(body);
                             body << push(pv) << endl;
                             p.second->unbind();
@@ -229,7 +229,7 @@ void codegen::genfunc() {
                 {
                     vector<var *> v;
                     for (auto p:toass) {
-                        if (p.first.back() > '9' || p.first.back() < '0') {
+                        if (p.first.back()>'9'||p.first.back()<'0') {
                             v.push_back(p.second);
                         }
                     }
@@ -352,7 +352,7 @@ void codegen::genfunc() {
             {
                 body << push("$ra") << endl;
                 for (auto p:toass) {
-                    if (p.first.back() > '9' || p.first.back() < '0') {
+                    if (p.first.back()>'9'||p.first.back()<'0') {
                         auto pv = p.second->val(body);
                         body << push(pv) << endl;
                         p.second->unbind();
@@ -369,7 +369,7 @@ void codegen::genfunc() {
             {
                 vector<var *> v;
                 for (auto p:toass) {
-                    if (p.first.back() > '9' || p.first.back() < '0') {
+                    if (p.first.back()>'9'||p.first.back()<'0') {
                         v.push_back(p.second);
                     }
                 }

@@ -85,7 +85,7 @@ void grammar_node::substitute(nodep v) {
 void grammar_node::substitute_first(nodep v) {
 //    cerr<<this->name<<" first substitute "<<v->name<<endl;
     for (auto r:v->rules) {
-        if(r.size()) {
+        if (r.size()) {
             if (r.front() == v) {
                 cerr << v->name << " is left recursive" << endl;
                 return;
@@ -232,11 +232,11 @@ nodep grammar::get_node(string s) {
     return all_nodes[s];
 }
 
-void grammar::read_rules() {
+void grammar::read_rules(istream &in) {
     char line[1000];
     nodep now_left = nullptr;
     bool oneof = false;
-    while (cin.getline(line, 1000)) {
+    while (in.getline(line, 1000)) {
         vector<string> words = split_space(line);
         if (words.empty())
             continue;
@@ -314,46 +314,30 @@ vector<nodep> grammar::get_root() {
     return vector<nodep>({nodes[0]});
 }
 
-void grammar::print_rules(bool tex) {
-    printf("All Vn:\n");
+void grammar::print_rules(ostream &out) {
+    out << "All Vn:" << endl;
     for (auto p : get_all_Vn()) {
-        if (tex) {
-            printf("        & %s, \\\\\n", texlize(p->name).data());
-        } else {
-            printf("        %s\n", p->name.data());
-        }
-
+        out << "        " << p->name << endl;
     }
-    printf("\n");
-    printf("All Vt:\n");
+    out << endl;
+    out << "All Vt:" << endl;
     for (auto p : get_all_Vt()) {
-        if (tex) {
-            printf("        & %s, \\\\\n", texlize(p->name).data());
-        } else {
-            printf("        %s\n", p->name.data());
-        }
-    }
-    printf("\n");
-    printf("All S:\n");
-    for (auto p : get_root()) {
-        if (tex) {
-            printf("        & %s, \\\\\n", texlize(p->name).data());
-        } else {
-            printf("        %s\n", p->name.data());
-        }
-    }
+        out << "        " << p->name << endl;
 
-    printf("All rules:\n");
+    }
+    out << endl;
+    out << "All S:" << endl;
+    for (auto p : get_root()) {
+        out << "        " << p->name << endl;
+    }
+    out << endl;
+    out << "All rules:" << endl;
     for (auto x:nodes) {
         nodep p = x;
         if (!p->rules.empty()) {
-            if (tex)
-                printf("%s\n", p->to_text().data());
-            else
-                printf("%s\n", p->to_string().data());
+            out << p->to_string() << endl;
         }
     }
-
 }
 
 grammar::grammar(const grammar &g) {
@@ -457,8 +441,8 @@ grammar::~grammar() {
     }
 }
 
-void grammar::print_first() {
-    cout << "----First:----" << endl;
+void grammar::print_first(ostream &out) {
+    out << "----First:----" << endl;
     set<nodep> Vt;
     for (auto n:get_all_Vt())
         Vt.insert(n);
@@ -467,22 +451,22 @@ void grammar::print_first() {
         if (isvt(u))
             continue;
         auto f = u->get_first_by_rule(set<nodep>());
-        cout << u->name << ":" << endl;
+        out << u->name << ":" << endl;
         for (auto x:u->get_first(set<nodep>())) {
-            cout << "    " << x->name << endl;
+            out << "    " << x->name << endl;
         }
-        cout << endl;
+        out << endl;
         for (int i = 0; i < u->rules.size(); i++) {
             auto r = u->rules[i];
-            cout << "    ";
+            out << "    ";
             for (auto n:r) {
-                cout << n->name << " ";
+                out << n->name << " ";
             }
-            cout << ": ";
+            out << ": ";
             for (auto x:f[i]) {
-                cout << x->name << " ";
+                out << x->name << " ";
             }
-            cout << endl;
+            out << endl;
         }
     }
 }
@@ -540,12 +524,12 @@ map<nodep, set<nodep>> grammar::get_follow() {
     return follow;
 }
 
-void grammar::print_follow() {
-    cout << "----Follow:----" << endl;
+void grammar::print_follow(ostream &out) {
+    out << "----Follow:----" << endl;
     for (const auto &p:get_follow()) {
-        cout << p.first->name << ": " << endl;
+        out << p.first->name << ": " << endl;
         for (auto x:p.second) {
-            cout << "    " << x->name << endl;
+            out << "    " << x->name << endl;
         }
     }
 }
@@ -592,13 +576,13 @@ map<pair<nodep, nodep>, vector<vector<nodep>>> grammar::get_LL1form() {
     return re;
 }
 
-void grammar::print_LL1form() {
-    cout << "----LL1 form----" << endl;
+void grammar::print_LL1form(ostream &out) {
+    out << "----LL1 form----" << endl;
     get_LL1form();
     for (const auto &p: LL1form) {
-        cout << p.first.first->name << " " << p.first.second->name << endl;
+        out << p.first.first->name << " " << p.first.second->name << endl;
         for (const auto &r:p.second)
-            cout << "    " << grammar_node::rule_to_string(r) << endl;
+            out << "    " << grammar_node::rule_to_string(r) << endl;
     }
 }
 
@@ -644,13 +628,17 @@ void grammar::build_lr1_closures() {
 }
 
 
-void grammar::print_lr0_closures(bool dot) {
-    cout << "----LR0 Closures----" << endl;
+void grammar::print_lr0_closures(ostream &out, ostream &dout) {
+    out << "----LR0 Closures----" << endl;
     if (lr0_closures.empty())
         build_lr0_closures();
 
-
-    if (dot) {
+    {
+        dout << "digraph automata{\n"
+                "graph[dip = 400];\n"
+                "rankdir = LR;\n"
+                "label=\"G(S')的规范项目集族\"\n"
+                "    node[shape = rect]" << endl;
         string indent = "    ";
         set<lr0_closurep> vis;
         stack<lr0_closurep> st;
@@ -664,9 +652,9 @@ void grammar::print_lr0_closures(bool dot) {
             for (auto i:c->itemps) {
                 label += i->to_string("");
             }
-            cout << indent << c->lr0_closure_cnt << " [label=\"" << label << "\"]" << endl;
+            dout << indent << c->lr0_closure_cnt << " [label=\"" << label << "\"]" << endl;
             for (auto g:c->go) {
-                cout << indent << c->lr0_closure_cnt << "->" << g.second->lr0_closure_cnt
+                dout << indent << c->lr0_closure_cnt << "->" << g.second->lr0_closure_cnt
                      << " [label=\"" << g.first->name << "\"]" << endl;
                 if (vis.count(g.second) == 0) {
                     st.push(g.second);
@@ -674,27 +662,33 @@ void grammar::print_lr0_closures(bool dot) {
                 }
             }
         }
-    } else {
+        dout << "}";
+    }
+    {
         vector<lr0_closurep> c;
         for (const auto &p:lr0_closures) {
             c.push_back(p.second);
         }
         sort(c.begin(), c.end(),
              [](lr0_closurep a, lr0_closurep b) { return a->lr0_closure_cnt < b->lr0_closure_cnt; });
-
         for (auto p:c) {
-            cout << p->to_string();
+            out << p->to_string();
         }
     }
 }
 
-void grammar::print_lr1_closures(bool dot) {
+void grammar::print_lr1_closures(ostream &out, ostream &dout) {
 
-    cout << "----LR1 Closures----" << endl;
+    out << "----LR1 Closures----" << endl;
     if (lr1_closures.empty())
         build_lr1_closures();
 
-    if (dot) {
+    {
+        dout << "digraph automata{\n"
+                "graph[dip = 400];\n"
+                "rankdir = LR;\n"
+                "label=\"G(S')的规范项目集族\"\n"
+                "    node[shape = rect]" << endl;
         string indent = "    ";
         set<lr1_closurep> vis;
         stack<lr1_closurep> st;
@@ -708,9 +702,9 @@ void grammar::print_lr1_closures(bool dot) {
             for (auto i:c->itemps) {
                 label += i->to_string("");
             }
-            cout << indent << c->lr1_closure_cnt << " [label=\"" << label << "\"]" << endl;
+            dout << indent << c->lr1_closure_cnt << " [label=\"" << label << "\"]" << endl;
             for (auto g:c->go) {
-                cout << indent << c->lr1_closure_cnt << "->" << g.second->lr1_closure_cnt
+                dout << indent << c->lr1_closure_cnt << "->" << g.second->lr1_closure_cnt
                      << " [label=\"" << g.first->name << "\"]" << endl;
                 if (vis.count(g.second) == 0) {
                     st.push(g.second);
@@ -718,7 +712,9 @@ void grammar::print_lr1_closures(bool dot) {
                 }
             }
         }
-    } else {
+        dout<<"}"<<endl;
+    }
+    {
         vector<lr1_closurep> c;
         for (const auto &p:lr1_closures) {
             c.push_back(p.second);
@@ -726,7 +722,7 @@ void grammar::print_lr1_closures(bool dot) {
         sort(c.begin(), c.end(),
              [](lr1_closurep a, lr1_closurep b) { return a->lr1_closure_cnt < b->lr1_closure_cnt; });
         for (auto p:c) {
-            cout << p->to_string();
+            out << p->to_string();
         }
     }
 }
@@ -798,24 +794,24 @@ map<pair<lr1_closurep, nodep>, vector<string>> grammar::get_LR1form() {
 }
 
 
-void grammar::print_SLR1form() {
-    cout << "----SLR1 form----" << endl;
+void grammar::print_SLR1form(ostream &out) {
+    out << "----SLR1 form----" << endl;
     get_SLR1form();
     for (const auto &p:SLR1form) {
         for (const auto &x:p.second) {
-            cout << p.first.first->lr0_closure_cnt << " " << p.first.second->name << " : ";
-            cout << " " << x << endl;
+            out << p.first.first->lr0_closure_cnt << " " << p.first.second->name << " : ";
+            out << " " << x << endl;
         }
     }
 }
 
-void grammar::print_LR1form() {
-    cout << "----LR1 form----" << endl;
+void grammar::print_LR1form(ostream &out) {
+    out << "----LR1 form----" << endl;
     get_LR1form();
     for (const auto &p:LR1form) {
         for (const auto &x:p.second) {
-            cout << p.first.first->lr1_closure_cnt << " " << p.first.second->name << " : ";
-            cout << " " << x << endl;
+            out << p.first.first->lr1_closure_cnt << " " << p.first.second->name << " : ";
+            out << " " << x << endl;
         }
     }
 }
@@ -1053,29 +1049,56 @@ void lr1_closure::expand() {
 grammar *x = new grammar();
 
 
-int main() {
-    freopen("../rule-files/c11-partial-rules.txt", "r", stdin);
-//    freopen("../rule-files/ll1.txt", "r", stdin);
-//    freopen("../rule-files/rules_nodes.txt", "w", stdout);
-    freopen("../rule-files/slr1.txt", "w", stdout);
-//    freopen("../rule-files/ll1_form.txt", "w", stdout);
-    x->read_rules();
-    x->print_rules();
+int main(int argc, char *argv[]) {
+    string dir = "../rule-files/input.txt";
+    string pd;
+    for (int i = (int) dir.length() - 1; i >= 0; i--) {
+        if (dir[i] == '.') {
+            pd = dir.substr(0, i);
+            break;
+        }
+    }
+    cout << pd << endl;
+    auto in = ifstream(dir);
+    ofstream outrule(pd + "-out-rules.txt");
+    ofstream outfirst(pd + "-out-first.txt");
+    ofstream outfollow(pd + "-out-follow.txt");
+    ofstream ll1form(pd + "-ll1form.txt");
+
+    x->read_rules(in);
+    x->print_rules(outrule);
 
 //    LL(1)
-//    x = x->eliminate_left_recursion();
-//    x->print_rules();
-//    x->print_first();
-//    x->print_follow();
-//    x->print_LL1form();
+    x = x->eliminate_left_recursion();
+    x->print_rules(outrule);
+    x->print_first(outfirst);
+    x->print_follow(outfollow);
+    x->print_LL1form(ll1form);
 
 //     SLR(1)
-    x->print_lr0_closures(false);
-    x->print_follow();
-    x->print_SLR1form();
+    ofstream slr1closure(pd + "-slr1closure.txt");
+    ofstream slr1closuredot(pd + "-slr1closure.dot");
+    ofstream slr1form(pd + "-slr1form.txt");
+    string slr1pngout = pd + "-slr1closure.png";
+    x->print_lr0_closures(slr1closure, slr1closuredot);
+
+    x->print_follow(outfollow);
+    x->print_SLR1form(slr1form);
+    cout << "Run this if graphviz not working:" << endl;
+
+    cout << "dot -Tpng " + pd + "-slr1closure.dot" + " > " + slr1pngout << endl;
+    system(("dot -Tpng " + pd + "-slr1closure.dot" + " > " + slr1pngout).data());
 
 //    LR(1)
-//    x->print_lr1_closures(false);
-//    x->print_LR1form();
+    ofstream lr1closure(pd + "-lr1closure.txt");
+    ofstream lr1closuredot(pd + "-lr1closure.dot");
+    ofstream lr1form(pd + "-lr1form.txt");
+    string lr1pngout = pd + "-lr1closure.png";
+
+    x->print_lr1_closures(lr1closure,lr1closuredot);
+    x->print_LR1form(lr1form);
+
+    cout << "dot -Tpng " + pd + "-lr1closure.dot" + " > " + lr1pngout << endl;
+    system(("dot -Tpng " + pd + "-lr1closure.dot" + " > " + lr1pngout).data());
     return 0;
 }

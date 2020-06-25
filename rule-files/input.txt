@@ -3,7 +3,9 @@ S':
 
 S:
     a A
+    B
 
 A:
     c A d
-    epsilon
+B:
+    c
