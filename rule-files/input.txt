@@ -1,11 +1,17 @@
-S':
-    S
-
 S:
-    a A
+    A
     B
 
 A:
-    c A d
+    a A'
+
+A':
+    A
+    epsilon
+
 B:
-    c
+    b B'
+
+B':
+    B
+    epsilon

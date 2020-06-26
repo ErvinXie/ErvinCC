@@ -127,6 +127,7 @@ set<nodep> grammar_node::get_first(set<nodep> fathers) {
 }
 
 vector<set<nodep>> grammar_node::get_first_by_rule(set<nodep> fathers) {
+
     fathers.insert(this);
     if (first_by_rule.empty()) {
         vector<set<nodep>> re;
@@ -140,19 +141,23 @@ vector<set<nodep>> grammar_node::get_first_by_rule(set<nodep> fathers) {
                     if (fathers.count(word_i) == 0) {
                         auto word_i_first = word_i->get_first(fathers);
                         for (auto x:word_i_first) {
-                            if (x != grammar->get_node("epsilon"))
+                            if (x != grammar->get_node("epsilon")) {
                                 s.insert(x);
+                            }
                         }
                     }
                 }
+
                 if (!word_i->de_epsilon(set<nodep>()))
                     break;
                 if (i == r.size() - 1) {
+
                     s.insert(grammar->get_node("epsilon"));
                 }
             }
-            if (r.empty())
+            if (r.empty()) {
                 s.insert(grammar->get_node("epsilon"));
+            }
             re.push_back(s);
         }
         first_by_rule = re;
@@ -167,7 +172,7 @@ bool grammar_node::de_epsilon(set<nodep> fathers) {
     for (const auto &r:rules) {
         bool might_epsilon = true;
         for (auto n:r) {
-            if (fathers.count(this) == 0 && n->de_epsilon(fathers) == false) {
+            if (fathers.count(n) == 0 && n->de_epsilon(fathers) == false) {
                 might_epsilon = false;
                 break;
             }
@@ -468,6 +473,7 @@ void grammar::print_first(ostream &out) {
             }
             out << endl;
         }
+        out << endl;
     }
 }
 
@@ -712,7 +718,7 @@ void grammar::print_lr1_closures(ostream &out, ostream &dout) {
                 }
             }
         }
-        dout<<"}"<<endl;
+        dout << "}" << endl;
     }
     {
         vector<lr1_closurep> c;
@@ -1095,7 +1101,7 @@ int main(int argc, char *argv[]) {
     ofstream lr1form(pd + "-lr1form.txt");
     string lr1pngout = pd + "-lr1closure.png";
 
-    x->print_lr1_closures(lr1closure,lr1closuredot);
+    x->print_lr1_closures(lr1closure, lr1closuredot);
     x->print_LR1form(lr1form);
 
     cout << "dot -Tpng " + pd + "-lr1closure.dot" + " > " + lr1pngout << endl;
