@@ -1068,19 +1068,19 @@ int main(int argc, char *argv[]) {
     auto in = ifstream(dir);
     ofstream outrule(pd + "-out-rules.txt");
     ofstream outfirst(pd + "-out-first.txt");
-    ofstream outfollow(pd + "-out-follow.txt");
+    ofstream outfollow(pd + "-out-to.txt");
     ofstream ll1form(pd + "-ll1form.txt");
 
     x->read_rules(in);
     x->print_rules(outrule);
 
 //    LL(1)
-    x = x->eliminate_left_recursion();
-    x->print_rules(outrule);
-    x->print_first(outfirst);
-    x->print_follow(outfollow);
-    x->print_LL1form(ll1form);
-
+//    x = x->eliminate_left_recursion();
+//    x->print_rules(outrule);
+//    x->print_first(outfirst);
+//    x->print_follow(outfollow);
+//    x->print_LL1form(ll1form);
+//
 //     SLR(1)
     ofstream slr1closure(pd + "-slr1closure.txt");
     ofstream slr1closuredot(pd + "-slr1closure.dot");

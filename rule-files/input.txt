@@ -1,17 +1,17 @@
-S:
-    A
-    B
+tu:
+    declaration-list
 
-A:
-    a A'
+declaration-list:
+    declaration
+    declaration-list declaration
 
-A':
-    A
-    epsilon
+declaration:
+    d-specifiers d-list ;
 
-B:
-    b B'
+d-list:
+    identifier
+    d-list , identifier
 
-B':
-    B
-    epsilon
+d-specifiers:
+    char
+    double

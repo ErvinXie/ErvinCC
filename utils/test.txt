@@ -1,0 +1,20 @@
+Block: 1
+To: 2 3
+m = h k
+= e m
+
+Block: 2
+To: 4
+g = e
+k = g
+
+Block: 3
+To: 3 4
+n = e
+= n
+
+Block: 4
+To: 1
+n = k
+h = k
+= n
